@@ -275,6 +275,10 @@ namespace vk
 			// Disable fp16 if driver uses LLVM emitter. It does fine with AMD proprietary drivers though.
 			shader_types_support.allow_float16 = (driver_properties.driverID == VK_DRIVER_ID_AMD_PROPRIETARY_KHR);
 		}
+
+        if(get_driver_vendor() == driver_vendor::ARM_MALI){
+            shader_types_support.allow_float16=false;
+        }
 	}
 
 	std::string physical_device::get_name() const
