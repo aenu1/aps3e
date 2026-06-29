@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="patch_manager">Pengurus Patch</string>
+    <string name="download_patch_table">Muat Turun Jadual Patch</string>
+    <string name="patch_downloaded_info">Fail patch: patch.yml\nSaiz: %s</string>
+    <string name="patch_not_downloaded">Jadual patch belum dimuat turun</string>
+    <string name="delete_patch">Padam Patch</string>
+    <string name="patch">Patch</string>
+    <string name="no_patches_available">Tiada patch tersedia untuk permainan ini.</string>
+    <string name="apply">Gunakan</string>
+    <string name="patch_settings_saved">Tetapan patch disimpan</string>
+
 	<string name="game_data_manager">Pengurus Data Permainan</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Import Data Permainan</string>

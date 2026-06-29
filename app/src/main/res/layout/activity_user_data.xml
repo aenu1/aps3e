@@ -107,6 +107,37 @@
 			android:scrollbars="vertical"
 			android:visibility="gone" />
 
+		<!-- 补丁管理 -->
+		<LinearLayout
+			android:id="@+id/patch_manager_view"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:orientation="vertical"
+			android:visibility="gone">
+
+			<Button
+				android:id="@+id/btn_patch_download"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/download_patch_table"
+				android:layout_margin="8dp" />
+
+			<ScrollView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent">
+
+				<TextView
+					android:id="@+id/text_patch_content"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="8dp"
+					android:textSize="13sp"
+					android:scrollbars="vertical" />
+
+			</ScrollView>
+
+		</LinearLayout>
+
 		<!-- 游戏数据管理 -->
 		<LinearLayout
 			android:id="@+id/game_data_view"

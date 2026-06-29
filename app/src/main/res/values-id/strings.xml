@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="patch_manager">Pengelola Patch</string>
+<string name="download_patch_table">Unduh Tabel Patch</string>
+<string name="patch_downloaded_info">File patch: patch.yml\nUkuran: %s</string>
+<string name="patch_not_downloaded">Tabel patch belum diunduh</string>
+<string name="delete_patch">Hapus Patch</string>
+<string name="patch">Patch</string>
+<string name="no_patches_available">Tidak ada patch yang tersedia untuk game ini.</string>
+<string name="apply">Terapkan</string>
+<string name="patch_settings_saved">Pengaturan patch disimpan</string>
 
 <string name="game_data_manager">Pengelola Data Game</string>
 <string name="game_data_manager_desc">00000001</string>

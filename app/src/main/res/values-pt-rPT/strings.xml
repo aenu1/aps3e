@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="patch_manager">Gestor de Patches</string>
+    <string name="download_patch_table">Transferir Tabela de Patches</string>
+    <string name="patch_downloaded_info">Ficheiro de patch: patch.yml\nTamanho: %s</string>
+    <string name="patch_not_downloaded">A tabela de patches ainda não foi transferida</string>
+    <string name="delete_patch">Eliminar Patch</string>
+    <string name="patch">Patch</string>
+    <string name="no_patches_available">Nenhum patch disponível para este jogo.</string>
+    <string name="apply">Aplicar</string>
+    <string name="patch_settings_saved">Definições de patches guardadas</string>
+
 	<string name="game_data_manager">Gestor de Dados do Jogo</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Importar Dados do Jogo</string>

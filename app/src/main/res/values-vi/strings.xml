@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="patch_manager">Trình quản lý bản vá</string>
+    <string name="download_patch_table">Tải bảng bản vá</string>
+    <string name="patch_downloaded_info">Tệp bản vá: patch.yml\nKích thước: %s</string>
+    <string name="patch_not_downloaded">Bảng bản vá chưa được tải</string>
+    <string name="delete_patch">Xóa bản vá</string>
+    <string name="patch">Bản vá</string>
+    <string name="no_patches_available">Không có bản vá nào cho trò chơi này.</string>
+    <string name="apply">Áp dụng</string>
+    <string name="patch_settings_saved">Đã lưu cài đặt bản vá</string>
+
 	<string name="game_data_manager">Trình quản lý Dữ liệu Trò chơi</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Nhập Dữ liệu Trò chơi</string>

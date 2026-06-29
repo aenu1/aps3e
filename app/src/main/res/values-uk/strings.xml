@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="patch_manager">Менеджер патчів</string>
+    <string name="download_patch_table">Завантажити таблицю патчів</string>
+    <string name="patch_downloaded_info">Файл патчу: patch.yml\nРозмір: %s</string>
+    <string name="patch_not_downloaded">Таблицю патчів ще не завантажено</string>
+    <string name="delete_patch">Видалити патч</string>
+    <string name="patch">Патч</string>
+    <string name="no_patches_available">Для цієї гри немає доступних патчів.</string>
+    <string name="apply">Застосувати</string>
+    <string name="patch_settings_saved">Налаштування патчів збережено</string>
+
 	<string name="game_data_manager">Менеджер даних гри</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Імпортувати дані гри</string>

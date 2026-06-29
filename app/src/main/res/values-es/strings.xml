@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="patch_manager">Gestor de parches</string>
+	<string name="download_patch_table">Descargar tabla de parches</string>
+	<string name="patch_downloaded_info">Archivo de parche: patch.yml\nTamaño: %s</string>
+	<string name="patch_not_downloaded">La tabla de parches aún no se ha descargado</string>
+	<string name="delete_patch">Eliminar parche</string>
+	<string name="patch">Parche</string>
+	<string name="no_patches_available">No hay parches disponibles para este juego.</string>
+	<string name="apply">Aplicar</string>
+	<string name="patch_settings_saved">Configuración de parches guardada</string>
+
 	<string name="game_data_manager">Administrador de Datos del Juego</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Importar Datos del Juego</string>

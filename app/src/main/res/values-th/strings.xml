@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="patch_manager">ตัวจัดการแพทช์</string>
+	<string name="download_patch_table">ดาวน์โหลดตารางแพทช์</string>
+	<string name="patch_downloaded_info">ไฟล์แพทช์: patch.yml\nขนาด: %s</string>
+	<string name="patch_not_downloaded">ยังไม่ได้ดาวน์โหลดตารางแพทช์</string>
+	<string name="delete_patch">ลบแพทช์</string>
+	<string name="patch">แพทช์</string>
+	<string name="no_patches_available">ไม่มีแพทช์สำหรับเกมนี้</string>
+	<string name="apply">ใช้</string>
+	<string name="patch_settings_saved">บันทึกการตั้งค่าแพทช์แล้ว</string>
+
 	<string name="game_data_manager">ตัวจัดการข้อมูลเกม</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">นำเข้าข้อมูลเกม</string>

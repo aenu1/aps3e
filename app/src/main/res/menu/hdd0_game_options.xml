@@ -31,4 +31,8 @@
     <item
         android:id="@+id/delete_spu_cache"
         android:title="@string/delete_spu_cache"/>
+
+    <item
+        android:id="@+id/patch"
+        android:title="@string/patch"/>
 </menu>

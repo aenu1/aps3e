@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <resources>
+<string name="patch_manager">パッチマネージャー</string>
+<string name="download_patch_table">パッチテーブルをダウンロード</string>
+<string name="patch_downloaded_info">パッチファイル: patch.yml\nサイズ: %s</string>
+<string name="patch_not_downloaded">パッチテーブルはまだダウンロードされていません</string>
+<string name="delete_patch">パッチを削除</string>
+<string name="patch">パッチ</string>
+<string name="no_patches_available">このゲームに利用可能なパッチはありません。</string>
+<string name="apply">適用</string>
+<string name="patch_settings_saved">パッチ設定が保存されました</string>
 
 <string name="game_data_manager">ゲームデータマネージャー</string>
 <string name="game_data_manager_desc">00000001</string>

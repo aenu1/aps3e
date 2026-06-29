@@ -49,6 +49,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.Array;
@@ -72,6 +74,7 @@ public class UserDataActivity extends AppCompatActivity {
     public static final int PAGE_TYPE_COMPATIBILITY_TABLE = 3;
     public static final int PAGE_TYPE_DRIVER_MANAGER = 4;
     public static final int PAGE_TYPE_GAME_DATA_MANAGER = 5;
+    public static final int PAGE_TYPE_PATCH_MANAGER = 6;
 
     private static final int REQUEST_EXPORT_PPU_CACHE = 6201;
     private static final int REQUEST_IMPORT_PPU_CACHE = 6202;
@@ -106,7 +109,6 @@ public class UserDataActivity extends AppCompatActivity {
 
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle(R.string.user_data_manager);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         toolbar.setNavigationOnClickListener(new View.OnClickListener() {
             @Override
@@ -127,6 +129,7 @@ public class UserDataActivity extends AppCompatActivity {
         layout_list.put(PAGE_TYPE_COMPATIBILITY_TABLE, findViewById(R.id.compatibility_table_view));
         layout_list.put(PAGE_TYPE_DRIVER_MANAGER, findViewById(R.id.list_driver));
         layout_list.put(PAGE_TYPE_GAME_DATA_MANAGER, findViewById(R.id.game_data_view));
+        layout_list.put(PAGE_TYPE_PATCH_MANAGER, findViewById(R.id.patch_manager_view));
     }
 
     private void handle_back_pressed() {
@@ -156,6 +159,9 @@ public class UserDataActivity extends AppCompatActivity {
                 case PAGE_TYPE_GAME_DATA_MANAGER:
                     show_game_data_page();
                     break;
+                case PAGE_TYPE_PATCH_MANAGER:
+                    show_patch_table_page();
+                    break;
             }
         } else if (current_page_type == PAGE_TYPE_PPU_CACHE_MANAGER) {
             handle_ppu_cache_item_click(adapter, position);
@@ -180,6 +186,7 @@ public class UserDataActivity extends AppCompatActivity {
         titles.add(new PageInfo(R.string.ppu_cache_manager, PAGE_TYPE_PPU_CACHE_MANAGER));
         titles.add(new PageInfo(R.string.iso_dir_manager, PAGE_TYPE_ISO_DIR_MANAGER));
         titles.add(new PageInfo(R.string.compatibility_table, PAGE_TYPE_COMPATIBILITY_TABLE));
+        titles.add(new PageInfo(R.string.patch_manager, PAGE_TYPE_PATCH_MANAGER));
         titles.add(new PageInfo(R.string.game_data_manager, PAGE_TYPE_GAME_DATA_MANAGER));
 
         if(Emulator.get.support_custom_driver()) {
@@ -758,8 +765,115 @@ public class UserDataActivity extends AppCompatActivity {
                 });
                 
     }
-    
 
+    private void show_patch_table_page() {
+        View layout = select_layout(PAGE_TYPE_PATCH_MANAGER);
+
+        final int titleResId = R.string.patch_manager;
+        if(getSupportActionBar()!=null) {
+            getSupportActionBar().setTitle(getString(titleResId));
+        }
+
+        Button btn_download = (Button) layout.findViewById(R.id.btn_patch_download);
+        btn_download.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                download_patch_table();
+            }
+        });
+
+        TextView text_patch_content = (TextView) layout.findViewById(R.id.text_patch_content);
+        File patchFile = Application.get_patch_yml_file();
+
+        if(patchFile.exists()) {
+            try {
+                String fileSize = format_file_size(patchFile.length());
+                String content = Utils.read_file_as_str(patchFile);
+                int previewLen = Math.min(content.length(), 3000);
+                String preview = content.substring(0, previewLen);
+                if(content.length() > 3000) preview += "\n...";
+                text_patch_content.setText(getString(R.string.patch_downloaded_info, fileSize) + "\n\n" + preview);
+            } catch (Exception e) {
+                text_patch_content.setText(e.getMessage());
+            }
+        } else {
+            text_patch_content.setText(R.string.patch_not_downloaded);
+        }
+
+        current_page_type = PAGE_TYPE_PATCH_MANAGER;
+    }
+
+    private void download_patch_table() {
+        final String patch_engine_version = "1.2";
+        final String url_str = "https://rpcs3.net/compatibility?patch&api=v1&v=" + patch_engine_version;
+
+        ProgressTask pt = new ProgressTask(this)
+                .set_progress_message(getString(R.string.downloading))
+                .set_failed_task(new ProgressTask.UI_Task() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(UserDataActivity.this, getString(R.string.download_failed), Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .set_done_task(new ProgressTask.UI_Task() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(UserDataActivity.this, getString(R.string.download_success), Toast.LENGTH_SHORT).show();
+                        show_patch_table_page();
+                    }
+                });
+
+        pt.call(new ProgressTask.Task() {
+            @Override
+            public void run(ProgressTask task) {
+                try {
+                    File patch_file = Application.get_patch_yml_file();
+                    File parentDir = patch_file.getParentFile();
+                    if(parentDir != null && !parentDir.exists()) {
+                        parentDir.mkdirs();
+                    }
+
+                    URL url = new URL(url_str);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(30000);
+                    connection.setRequestMethod("GET");
+
+                    int responseCode = connection.getResponseCode();
+                    if(responseCode != HttpURLConnection.HTTP_OK) {
+                        throw new IOException("HTTP error: " + responseCode);
+                    }
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+                    connection.disconnect();
+
+                    JSONObject json = new JSONObject(sb.toString());
+                    String patch_content = json.getString("patch");
+
+                    FileOutputStream fos = new FileOutputStream(patch_file);
+                    fos.write(patch_content.getBytes("UTF-8"));
+                    fos.close();
+
+                    task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    task.task_handler.sendEmptyMessage(ProgressTask.TASK_FAILED);
+                }
+            }
+        });
+    }
+
+    private static String format_file_size(long bytes) {
+        if(bytes < 1024) return bytes + " B";
+        if(bytes < 1024*1024) return String.format("%.1f KB", bytes/1024.0);
+        return String.format("%.1f MB", bytes/(1024.0*1024));
+    }
     private void show_driver_manager_page() {
         ListView listDriver=(ListView)select_layout(PAGE_TYPE_DRIVER_MANAGER);
 

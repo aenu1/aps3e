@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="patch_manager">पैच प्रबंधक</string>
+    <string name="download_patch_table">पैच तालिका डाउनलोड करें</string>
+    <string name="patch_downloaded_info">पैच फ़ाइल: patch.yml\nआकार: %s</string>
+    <string name="patch_not_downloaded">पैच तालिका अभी तक डाउनलोड नहीं हुई है</string>
+    <string name="delete_patch">पैच हटाएं</string>
+    <string name="patch">पैच</string>
+    <string name="no_patches_available">इस गेम के लिए कोई पैच उपलब्ध नहीं हैं।</string>
+    <string name="apply">लागू करें</string>
+    <string name="patch_settings_saved">पैच सेटिंग्स सहेजी गईं</string>
 
     <string name="game_data_manager">गेम डेटा प्रबंधक</string>
     <string name="game_data_manager_desc">00000001</string>

@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="patch_manager">Yama Yöneticisi</string>
+	<string name="download_patch_table">Yama Tablosunu İndir</string>
+	<string name="patch_downloaded_info">Yama dosyası: patch.yml\nBoyut: %s</string>
+	<string name="patch_not_downloaded">Yama tablosu henüz indirilmedi</string>
+	<string name="delete_patch">Yamayı Sil</string>
+	<string name="patch">Yama</string>
+	<string name="no_patches_available">Bu oyun için kullanılabilir yama yok.</string>
+	<string name="apply">Uygula</string>
+	<string name="patch_settings_saved">Yama ayarları kaydedildi</string>
+
     <string name="game_data_manager">Oyun Veri Yöneticisi</string>
     <string name="game_data_manager_desc">00000001</string>
     <string name="import_game_data">Oyun Verilerini İçe Aktar</string>

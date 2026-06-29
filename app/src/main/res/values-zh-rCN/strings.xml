@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+<string name="patch_manager">补丁管理器</string>
+<string name="download_patch_table">下载补丁表</string>
+<string name="patch_downloaded_info">补丁文件: patch.yml\n大小: %s</string>
+<string name="patch_not_downloaded">补丁表尚未下载</string>
+<string name="delete_patch">删除补丁</string>
+<string name="patch">补丁</string>
+<string name="no_patches_available">此游戏没有可用的补丁。</string>
+<string name="apply">应用</string>
+<string name="patch_settings_saved">补丁设置已保存</string>
+
 <string name="game_data_manager">游戏数据管理器</string>
 <string name="game_data_manager_desc">00000001</string>
 <string name="import_game_data">导入游戏数据</string>

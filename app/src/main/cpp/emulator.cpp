@@ -17,6 +17,9 @@
 
 #if CFG_TYPE_YAML
 #include "yaml-cpp/yaml.h"
+#include <sstream>
+#include <iostream>
+#include <fstream>
 
 static_assert(sizeof(YAML::Node*)==8,"");
 
@@ -90,6 +93,115 @@ static jstring j_load_config_entry(JNIEnv* env,jobject self,YAML::Node* config_n
         }
             break;
 
+        case 3:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4];
+            if(node.IsDefined())
+                return env->NewStringUTF(node.as<std::string>().c_str());
+        }
+            break;
+
+        case 4:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5];
+            if(node.IsDefined())
+                return env->NewStringUTF(node.as<std::string>().c_str());
+        }
+            break;
+
+        case 5:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6];
+            if(node.IsDefined())
+                return env->NewStringUTF(node.as<std::string>().c_str());
+        }
+        break;
+
+        case 6:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6][child7];
+            if(node.IsDefined())
+                return env->NewStringUTF(node.as<std::string>().c_str());
+        }
+        break;
+
+        case 7:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            std::string child8=child7.substr(pos+1);
+            child7=child7.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6][child7][child8];
+            if(node.IsDefined())
+                return env->NewStringUTF(node.as<std::string>().c_str());
+        }
+        break;
+
         default:
             LOGE("load_config_entry fail %s,level too deep",tag_str.c_str());
             break;
@@ -119,8 +231,183 @@ static jobjectArray j_load_config_entry_ty_arr(JNIEnv* env,jobject self,YAML::No
                 return arr;
             }
         }
-
             break;
+        case 1:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+
+            YAML::Node node=(*config_node)[parent][child][child2];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+            break;
+
+        case 2:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+
+            YAML::Node node=(*config_node)[parent][child][child2][child3];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+            break;
+        
+        case 3:{ 
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0,pos);
+
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+            break;
+        
+        case 4:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+            break;
+        
+        case 5:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+        break;
+        
+        case 6:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6][child7];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+        break;
+        
+        case 7:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            std::string child8=child7.substr(pos+1);
+            child7=child7.substr(0,pos);
+            YAML::Node node=(*config_node)[parent][child][child2][child3][child4][child5][child6][child7][child8];
+            if(node.IsDefined()) {
+                std::vector<std::string> v=node.as<std::vector<std::string>>();
+                jobjectArray arr=env->NewObjectArray(v.size(),env->FindClass("java/lang/String"),NULL);
+                for(size_t i=0;i<v.size();i++){
+                    env->SetObjectArrayElement(arr,i,env->NewStringUTF(v[i].c_str()));
+                }
+                return arr;
+            }
+        }
+        break;
 
         default:
             LOGE("load_config_entry fail %s,level too deep",tag_str.c_str());
@@ -164,6 +451,105 @@ static void j_save_config_entry(JNIEnv* env,jobject self,YAML::Node* config_node
             (*config_node)[parent][child][child2][child3]=std::string(val_cstr);
         }
             break;
+        
+        case 3:{ 
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0,pos);
+            (*config_node)[parent][child][child2][child3][child4]=std::string(val_cstr);
+        }
+            break;
+        
+        case 4:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            (*config_node)[parent][child][child2][child3][child4][child5]=std::string(val_cstr);
+        }
+            break;
+        
+        case 5:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            (*config_node)[parent][child][child2][child3][child4][child5][child6]=std::string(val_cstr);
+        }
+        break;
+        
+        case 6:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            (*config_node)[parent][child][child2][child3][child4][child5][child6][child7]=std::string(val_cstr);
+        }
+        break;
+        
+        case 7:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            std::string child8=child7.substr(pos+1);
+            child7=child7.substr(0,pos);
+            (*config_node)[parent][child][child2][child3][child4][child5][child6][child7][child8]=std::string(val_cstr);
+        }
+        break;
 
         default:
             LOGE("save_config_entry fail %s,level too deep",tag_str.c_str());
@@ -196,7 +582,172 @@ static void j_save_config_entry_ty_arr(JNIEnv* env,jobject self,YAML::Node* conf
             (*config_node)[parent][child] = v;
         }
             break;
+        case 1:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2] = v;
+        }
+            break;
 
+        case 2:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3] = v;
+        }
+            break;
+        
+        case 3:{ 
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3][child4] = v;
+        }
+            break;
+        
+        case 4:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3][child4][child5] = v;
+        }
+            break;
+        
+        case 5:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3][child4][child5][child6] = v;
+        }
+        break;
+        
+        case 6:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3][child4][child5][child6][child7] = v;
+        }
+        break;
+        
+        case 7:{
+            pos=child.find('|');
+            std::string child2=child.substr(pos+1);
+            child=child.substr(0,pos);
+            pos=child2.find('|');
+            std::string child3=child2.substr(pos+1);
+            child2=child2.substr(0,pos);
+            pos=child3.find('|');
+            std::string child4=child3.substr(pos+1);
+            child3=child3.substr(0, pos);
+            pos=child4.find('|');
+            std::string child5=child4.substr(pos+1);
+            child4=child4.substr(0,pos);
+            pos=child5.find('|');
+            std::string child6=child5.substr(pos+1);
+            child5=child5.substr(0,pos);
+            pos=child6.find('|');
+            std::string child7=child6.substr(pos+1);
+            child6=child6.substr(0,pos);
+            std::string child8=child7.substr(pos+1);
+            child7=child7.substr(0,pos);
+            std::vector<std::string> v;
+            for (int i = 0; i < env->GetArrayLength(val); i++) {
+                jstring jstr = (jstring) env->GetObjectArrayElement(val, i);
+                const char *str = env->GetStringUTFChars(jstr, &is_copy);
+                v.push_back(std::string(str));
+                env->ReleaseStringUTFChars(jstr, str);
+            }
+            (*config_node)[parent][child][child2][child3][child4][child5][child6][child7][child8] = v;
+        }
+        break;
 
         default:
         LOGE("save_config_entry fail %s,level too deep",tag_str.c_str());
@@ -213,6 +764,181 @@ static void j_close_config_file(JNIEnv* env,jobject self,YAML::Node* config_node
     fout.close();
     env->ReleaseStringUTFChars(config_path,path);
     delete config_node;
+}
+
+static jobjectArray j_list_children(JNIEnv* env, jobject self, YAML::Node* config_node, jstring tag) {
+
+    YAML::Node node;
+    if (tag==NULL) {
+        node = *config_node;
+    } else {
+
+        jboolean is_copy = false;
+        const char* tag_cstr = env->GetStringUTFChars(tag, &is_copy);
+        std::string tag_str(tag_cstr);
+        env->ReleaseStringUTFChars(tag, tag_cstr);
+
+        if(tag_str.empty()){
+            node = *config_node;
+        }
+        else{
+
+            switch(std::count(tag_str.begin(),tag_str.end(),'|')){
+                case 0: {
+                    node=(*config_node)[tag_str];
+                }
+                    break;
+                case 1:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+
+                    node=(*config_node)[child][child2];
+                }
+                    break;
+
+                case 2:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+
+                    node=(*config_node)[child][child2][child3];
+                }
+                    break;
+
+                case 3:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+                    pos=child3.find('|');
+                    std::string child4=child3.substr(pos+1);
+                    child3=child3.substr(0,pos);
+
+                    node=(*config_node)[child][child2][child3][child4];
+
+                }
+                    break;
+
+                case 4:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+                    pos=child3.find('|');
+                    std::string child4=child3.substr(pos+1);
+                    child3=child3.substr(0, pos);
+                    pos=child4.find('|');
+                    std::string child5=child4.substr(pos+1);
+                    child4=child4.substr(0,pos);
+                    node=(*config_node)[child][child2][child3][child4][child5];
+
+                }
+                    break;
+
+                case 5:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+                    pos=child3.find('|');
+                    std::string child4=child3.substr(pos+1);
+                    child3=child3.substr(0, pos);
+                    pos=child4.find('|');
+                    std::string child5=child4.substr(pos+1);
+                    child4=child4.substr(0,pos);
+                    pos=child5.find('|');
+                    std::string child6=child5.substr(pos+1);
+                    child5=child5.substr(0,pos);
+                    node=(*config_node)[child][child2][child3][child4][child5][child6];
+                }
+                    break;
+
+                case 6:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+                    pos=child3.find('|');
+                    std::string child4=child3.substr(pos+1);
+                    child3=child3.substr(0, pos);
+                    pos=child4.find('|');
+                    std::string child5=child4.substr(pos+1);
+                    child4=child4.substr(0,pos);
+                    pos=child5.find('|');
+                    std::string child6=child5.substr(pos+1);
+                    child5=child5.substr(0,pos);
+                    pos=child6.find('|');
+                    std::string child7=child6.substr(pos+1);
+                    child6=child6.substr(0,pos);
+                    node=(*config_node)[child][child2][child3][child4][child5][child6][child7];
+                }
+                    break;
+
+                case 7:{
+                    std::string child=tag_str;
+                    int pos=child.find('|');
+                    std::string child2=child.substr(pos+1);
+                    child=child.substr(0,pos);
+                    pos=child2.find('|');
+                    std::string child3=child2.substr(pos+1);
+                    child2=child2.substr(0,pos);
+                    pos=child3.find('|');
+                    std::string child4=child3.substr(pos+1);
+                    child3=child3.substr(0, pos);
+                    pos=child4.find('|');
+                    std::string child5=child4.substr(pos+1);
+                    child4=child4.substr(0,pos);
+                    pos=child5.find('|');
+                    std::string child6=child5.substr(pos+1);
+                    child5=child5.substr(0,pos);
+                    pos=child6.find('|');
+                    std::string child7=child6.substr(pos+1);
+                    child6=child6.substr(0,pos);
+                    std::string child8=child7.substr(pos+1);
+                    child7=child7.substr(0,pos);
+                    node=(*config_node)[child][child2][child3][child4][child5][child6][child7][child8];
+                }
+                    break;
+
+                default:
+                LOGE("j_list_children fail %s,level too deep",tag_str.c_str());
+                return NULL;
+                    break;
+            }
+        }
+    }
+
+    if(!node.IsDefined()) return NULL;
+    if (!node.IsMap()) return NULL;
+
+    jclass strClass = env->FindClass("java/lang/String");
+    std::vector<std::string> keys;
+    for (auto it = node.begin(); it != node.end(); ++it) {
+        keys.push_back(it->first.as<std::string>());
+    }
+    jobjectArray arr = env->NewObjectArray(keys.size(), strClass, NULL);
+    for (size_t i = 0; i < keys.size(); i++) {
+        env->SetObjectArrayElement(arr, i, env->NewStringUTF(keys[i].c_str()));
+    }
+    return arr;
 }
 #elif CFG_TYPE_TOML
 #include "cpptoml/include/cpptoml.h"
@@ -347,6 +1073,7 @@ int register_Emulator$Config(JNIEnv* env){
             { "native_save_config_entry", "(JLjava/lang/String;Ljava/lang/String;)V", (void *) j_save_config_entry },
             { "native_save_config_entry_ty_arr", "(JLjava/lang/String;[Ljava/lang/String;)V", (void *) j_save_config_entry_ty_arr },
             { "native_close_config_file", "(JLjava/lang/String;)V", (void *) j_close_config_file },
+            { "native_list_children", "(JLjava/lang/String;)[Ljava/lang/String;", (void *) j_list_children },
     };
     jclass clazz = env->FindClass("aenu/emulator/Emulator$Config");
     return env->RegisterNatives(clazz,methods, sizeof(methods)/sizeof(methods[0]));

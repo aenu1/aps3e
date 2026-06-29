@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import android.content.Context;
 import android.os.Build;
@@ -215,6 +216,190 @@ public class Emulator extends aenu.emulator.Emulator
 					return info;
 			}
 			return null;
+		}
+	}
+
+
+	static class PatchManager {
+
+		static final String k_all = "All";
+		static final String k_anchors = "Anchors";
+		static final String k_author = "Author";
+		static final String k_games = "Games";
+		static final String k_group = "Group";
+		static final String k_notes = "Notes";
+		static final String k_patch = "Patch";
+		static final String k_patch_version = "Patch Version";
+		static final String k_version = "Version";
+		static final String k_enabled = "Enabled";
+		static final String k_config_values = "Configurable Values";
+		static final String k_value = "Value";
+		static final String k_type = "Type";
+		static final String k_min = "Min";
+		static final String k_max = "Max";
+		static final String k_allowed_values = "Allowed Values";
+
+		public static class PatchInfo {
+			public String id;
+			public String name;
+
+			public String game_name;
+			public String game_serial;
+			public String game_version;
+			public boolean isEnabled;
+
+			public PatchInfo(String id,String name, String game_name, String game_serial,
+							 String game_version) {
+				this.id = id;
+				this.name = name;
+				this.game_name = game_name;
+				this.game_serial = game_serial;
+				this.game_version = game_version;
+				this.isEnabled = false;
+			}
+		}
+
+		public static List<PatchManager.PatchInfo> parseAllPatches(String patchYmlPath) {
+			List<PatchManager.PatchInfo> patches = new ArrayList<>();
+			String patchYmlStr=Utils.read_file_as_str(new File(patchYmlPath));
+			final String root_key = null;
+			try {
+				aenu.emulator.Emulator.Config config = aenu.emulator.Emulator.Config.open_config_from_string(patchYmlStr);
+
+				String[] main_keys = config.list_children(root_key);
+				if (main_keys == null) {
+					config.close_config(); return patches;
+				}
+
+				for (String main_key : main_keys) {
+					if (main_key.startsWith(k_anchors)) continue;
+					if (!main_key.startsWith("PPU-")&&!main_key.startsWith("SPU-")) continue;
+					final String[] patchNames = config.list_children(main_key);
+
+					if (patchNames == null) continue;
+
+					for (String patchName : patchNames) {
+
+						String k_Games=String.join("|", new String[]{main_key, patchName, k_games});
+						String[] gameTitles = config.list_children(k_Games);
+
+						if (gameTitles == null) {
+							continue;
+						}
+
+						for (String gameTitle : gameTitles) {
+							String k_Games_gameTitle=String.join("|", new String[]{main_key, patchName, k_games, gameTitle});
+							String[] serials = config.list_children(k_Games_gameTitle);
+							if (serials == null) {
+								continue;
+							}
+
+							for (String serial : serials) {
+								String versionPath = String.join("|", new String[]{main_key, patchName, k_games, gameTitle, serial});
+								String[] versions = config.load_config_entry_ty_arr(versionPath);
+
+								if (versions != null && versions.length > 0) {
+									for (String ver : versions) {
+										patches.add(new PatchManager.PatchInfo(main_key, patchName,gameTitle, serial, ver));
+									}
+								}
+							}
+						}
+					}
+				}
+
+				config.close_config();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return patches;
+		}
+
+		public static Map<String, Boolean> loadEnabledPatches(String patchConfigPath) {
+			Map<String, Boolean> enabledPatches = new HashMap<>();
+			final String root_key = null;
+			if(patchConfigPath==null) return enabledPatches;
+			if(!new File(patchConfigPath).exists()) return enabledPatches;
+			try {
+				String patchYmlStr=Utils.read_file_as_str(new File(patchConfigPath));
+				aenu.emulator.Emulator.Config config = aenu.emulator.Emulator.Config.open_config_from_string(patchYmlStr);
+				String[] main_keys = config.list_children( root_key);
+				if (main_keys != null) {
+					for(String main_key : main_keys){
+						String[] patch_keys = config.list_children(main_key);
+						if (patch_keys != null) {
+							for(String _patch_key : patch_keys){
+								String patch_key = String.join("|", new String[]{main_key, _patch_key});
+								String[] game_keys = config.list_children(patch_key);
+								if (game_keys != null) {
+									for(String game_key : game_keys){
+										String game_patch_key = String.join("|", new String[]{patch_key, game_key});
+										String[] serial_keys = config.list_children(game_patch_key);
+										if (serial_keys != null) {
+											for(String _serial_key : serial_keys){
+												String serial_key = String.join("|", new String[]{game_patch_key, _serial_key});
+												String[] version_keys = config.list_children(serial_key);
+												if (version_keys != null) {
+													for(String _version_key : version_keys){
+														String version_key = String.join("|", new String[]{serial_key, _version_key});
+														String patch_enabled = String.join("|", new String[]{version_key, k_enabled});
+														String patch_enabled_str = config.load_config_entry(patch_enabled);
+														enabledPatches.put(version_key,Boolean.valueOf(patch_enabled_str) );
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				config.close_config();
+			} catch (Exception e) {
+			}
+			return enabledPatches;
+		}
+
+		public static List<PatchManager.PatchInfo> getPatchesForGame(String serial, List<PatchManager.PatchInfo> allPatches,
+																				Map<String, Boolean> enabledPatches) {
+			List<PatchManager.PatchInfo> gamePatches = new ArrayList<>();
+			for (PatchManager.PatchInfo patch : allPatches) {
+				if (patch.game_serial.equals(serial)) {
+					final String patchId = String.join("|", new String[]{patch.id, patch.name, patch.game_name, patch.game_serial, patch.game_version});
+					for (Map.Entry<String, Boolean> entry : enabledPatches.entrySet()) {
+						if (entry.getKey().equals(patchId)) {
+							patch.isEnabled = entry.getValue();
+							break;
+						}
+					}
+					gamePatches.add(patch);
+				}
+			}
+			return gamePatches;
+		}
+
+		public static void updatePatchStatus(PatchManager.PatchInfo patch, boolean isEnabled, aenu.emulator.Emulator.Config config) {
+			patch.isEnabled = isEnabled;
+			final String enabledId = String.join("|", new String[]{patch.id,patch.name, patch.game_name, patch.game_serial, patch.game_version,k_enabled});
+			config.save_config_entry(enabledId, String.valueOf(isEnabled));
+		}
+
+		public static List<PatchManager.PatchInfo> getAllLocalPatches() {
+			File patchFile = Application.get_patch_yml_file();
+			if (patchFile.exists()) {
+				return parseAllPatches(patchFile.getAbsolutePath());
+			}
+			return new ArrayList<>();
+		}
+
+		public static Map<String, Boolean> getEnabledLocalPatches() {
+			File patchConfigFile = Application.get_patch_config_yml_file();
+			if (patchConfigFile.exists()) {
+				return loadEnabledPatches(patchConfigFile.getAbsolutePath());
+			}
+			return new HashMap<>();
 		}
 	}
 

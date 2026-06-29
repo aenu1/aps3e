@@ -4,6 +4,16 @@
 	<!--无法转义',&apos;会报错 -->
 	<!-- +++++++++++++++++++++++++++ -->
 
+    <string name="patch_manager">Gestionnaire de correctifs</string>
+    <string name="download_patch_table">Télécharger la table de correctifs</string>
+    <string name="patch_downloaded_info">Fichier de correctif : patch.yml\nTaille : %s</string>
+    <string name="patch_not_downloaded">La table de correctifs n\'a pas encore été téléchargée</string>
+    <string name="delete_patch">Supprimer le correctif</string>
+    <string name="patch">Correctif</string>
+    <string name="no_patches_available">Aucun correctif disponible pour ce jeu.</string>
+    <string name="apply">Appliquer</string>
+    <string name="patch_settings_saved">Paramètres des correctifs enregistrés</string>
+
 	<string name="game_data_manager">Gestionnaire de données de jeu</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Importer les données de jeu</string>

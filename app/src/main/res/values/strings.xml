@@ -3,6 +3,16 @@
     <!--string name="app_name">aPS3e Premium</string-->
 	<string name="app_name">aPS3e</string>
 
+	<string name="patch_manager">Patch Manager</string>
+	<string name="download_patch_table">Download Patch Table</string>
+	<string name="patch_downloaded_info">Patch file: patch.yml\nSize: %s</string>
+	<string name="patch_not_downloaded">Patch table not downloaded yet</string>
+	<string name="delete_patch">Delete Patch</string>
+	<string name="patch">Patch</string>
+	<string name="no_patches_available">No patches available for this game.</string>
+	<string name="apply">Apply</string>
+	<string name="patch_settings_saved">Patch settings saved</string>
+
 	<string name="game_data_manager">Game Data Manager</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Import Game Data</string>

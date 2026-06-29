@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="patch_manager">Menedżer łatek</string>
+    <string name="download_patch_table">Pobierz tabelę łatek</string>
+    <string name="patch_downloaded_info">Plik łatki: patch.yml\nRozmiar: %s</string>
+    <string name="patch_not_downloaded">Tabela łatek nie została jeszcze pobrana</string>
+    <string name="delete_patch">Usuń łatkę</string>
+    <string name="patch">Łatka</string>
+    <string name="no_patches_available">Brak dostępnych łatek do tej gry.</string>
+    <string name="apply">Zastosuj</string>
+    <string name="patch_settings_saved">Ustawienia łatek zostały zapisane</string>
+
 	<string name="game_data_manager">Menedżer danych gry</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">Importuj dane gry</string>

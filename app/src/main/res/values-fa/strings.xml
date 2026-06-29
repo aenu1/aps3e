@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="patch_manager">مدیر پچ</string>
+	<string name="download_patch_table">دانلود جدول پچ</string>
+	<string name="patch_downloaded_info">فایل پچ: patch.yml\nحجم: %s</string>
+	<string name="patch_not_downloaded">جدول پچ هنوز دانلود نشده است</string>
+	<string name="delete_patch">حذف پچ</string>
+	<string name="patch">پچ</string>
+	<string name="no_patches_available">هیچ پچی برای این بازی موجود نیست.</string>
+	<string name="apply">اعمال</string>
+	<string name="patch_settings_saved">تنظیمات پچ ذخیره شد</string>
 
 	<string name="game_data_manager">مدیریت داده‌های بازی</string>
 	<string name="game_data_manager_desc">00000001</string>

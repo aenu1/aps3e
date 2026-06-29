@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+
+<string name="patch_manager">패치 관리자</string>
+<string name="download_patch_table">패치 테이블 다운로드</string>
+<string name="patch_downloaded_info">패치 파일: patch.yml\n크기: %s</string>
+<string name="patch_not_downloaded">패치 테이블이 아직 다운로드되지 않았습니다</string>
+<string name="delete_patch">패치 삭제</string>
+<string name="patch">패치</string>
+<string name="no_patches_available">이 게임에 사용할 수 있는 패치가 없습니다.</string>
+<string name="apply">적용</string>
+<string name="patch_settings_saved">패치 설정이 저장되었습니다</string>
+
+
 <string name="game_data_manager">게임 데이터 관리자</string>
 <string name="game_data_manager_desc">00000001</string>
 <string name="import_game_data">게임 데이터 가져오기</string>

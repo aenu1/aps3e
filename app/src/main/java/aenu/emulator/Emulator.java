@@ -32,6 +32,7 @@ public class Emulator {
 
         private native void native_save_config_entry_ty_arr(long n_handle,String tag,String[] val);
         private native void native_close_config_file(long n_handle,String config_path);
+        private native String[] native_list_children(long n_handle, String tag);
         public static Emulator.Config open_config_file(String config_path) throws Emulator.ConfigFileException
         {
             Emulator.Config config=new Emulator.Config();
@@ -80,6 +81,10 @@ public class Emulator {
             if(config_path!=null)
                 throw new RuntimeException("should use method close_config_file");
             return native_close_config(n_handle);
+        }
+        public String[] list_children(String tag)
+        {
+            return native_list_children(n_handle, tag);
         }
     }
 

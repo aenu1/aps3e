@@ -71,6 +71,19 @@ public class Application extends android.app.Application
         return new File(Application.get_app_data_dir(),"config/compatibility_table.json");
     }
 
+    public static File get_patches_dir(){
+        File dir = new File(Application.get_app_data_dir(),"config/patches");
+        if(!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    public static File get_patch_yml_file(){
+        return new File(get_patches_dir(),"patch.yml");
+    }
+    public static File get_patch_config_yml_file(){
+        return new File(Application.get_app_data_dir(),"config/patch_config.yml");
+    }
+
     static boolean device_support_vulkan() {
         return gpu_device_name_vk!=null;
     }

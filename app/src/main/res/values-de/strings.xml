@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="patch_manager">Patch-Manager</string>
+	<string name="download_patch_table">Patch-Tabelle herunterladen</string>
+	<string name="patch_downloaded_info">Patch-Datei: patch.yml\nGröße: %s</string>
+	<string name="patch_not_downloaded">Patch-Tabelle noch nicht heruntergeladen</string>
+	<string name="delete_patch">Patch löschen</string>
+	<string name="patch">Patch</string>
+	<string name="no_patches_available">Keine Patches für dieses Spiel verfügbar.</string>
+	<string name="apply">Anwenden</string>
+	<string name="patch_settings_saved">Patch-Einstellungen gespeichert</string>
 
 	<string name="game_data_manager">Spieldaten-Manager</string>
 	<string name="game_data_manager_desc">00000001</string>

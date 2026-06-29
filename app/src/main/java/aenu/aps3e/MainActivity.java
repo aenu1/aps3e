@@ -821,6 +821,10 @@ public class MainActivity extends AppCompatActivity {
 				}
 			});
 		}
+		else if(item_id==R.id.patch) {
+			Emulator.MetaInfo meta_info=adapter.getMetaInfo(position);
+			show_patch_dialog(meta_info.serial);
+		}
 		return super.onContextItemSelected(item);
 	}
 
@@ -864,14 +868,72 @@ public class MainActivity extends AppCompatActivity {
 				.setNegativeButton(android.R.string.cancel, null)
 				.create().show();
 	}
-	void show_trophy_dialog(Emulator.GameTrophyInfo game_trophy_info){
-		ListView layout=new ListView(this);
-		layout.setAdapter(new TrophyDialogAdapter( this, game_trophy_info));
+	void show_trophy_dialog(Emulator.GameTrophyInfo game_trophy_info) {
+		ListView layout = new ListView(this);
+		layout.setAdapter(new TrophyDialogAdapter(this, game_trophy_info));
 		androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
 		builder.setView(layout);
 		builder.create().show();
 	}
+	void show_patch_dialog(String serial){
+	    List<Emulator.PatchManager.PatchInfo> allPatches = Emulator.PatchManager.getAllLocalPatches();
 
+	    Map<String, Boolean> enabledPatches = Emulator.PatchManager.getEnabledLocalPatches();
+	    List<Emulator.PatchManager.PatchInfo> gamePatches = Emulator.PatchManager.getPatchesForGame(serial, allPatches, enabledPatches);
+
+	    if (gamePatches.isEmpty()) {
+	        new AlertDialog.Builder(this)
+	            .setTitle(serial)
+	            .setMessage(getString(R.string.no_patches_available))
+	            .setPositiveButton(android.R.string.ok, null)
+	            .create().show();
+	        return;
+	    }
+
+	    String[] patchNames = new String[gamePatches.size()];
+	    boolean[] checkedStates = new boolean[gamePatches.size()];
+	    
+	    for (int i = 0; i < gamePatches.size(); i++) {
+	        Emulator.PatchManager.PatchInfo patch = gamePatches.get(i);
+	        patchNames[i] = patch.name;
+	        checkedStates[i] = patch.isEnabled;
+	    }
+
+	    AlertDialog.Builder builder = new AlertDialog.Builder(this);
+	    builder.setTitle(serial)
+	           .setMultiChoiceItems(patchNames, checkedStates, new DialogInterface.OnMultiChoiceClickListener() {
+	               @Override
+	               public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+	                   checkedStates[which] = isChecked;
+	               }
+	           })
+	           .setPositiveButton(getString(R.string.apply), new DialogInterface.OnClickListener() {
+	               @Override
+	               public void onClick(DialogInterface dialog, int which) {
+                       try {
+						   if(!Application.get_patch_config_yml_file().exists()) Application.get_patch_config_yml_file().createNewFile();
+                           Emulator.Config config = Emulator.Config.open_config_file(Application.get_patch_config_yml_file().getAbsolutePath());
+						   for (int i = 0; i < gamePatches.size(); i++) {
+							   Emulator.PatchManager.PatchInfo patch = gamePatches.get(i);
+							   boolean newState = checkedStates[i];
+
+							   if (patch.isEnabled != newState) {
+								   Emulator.PatchManager.updatePatchStatus(patch, newState, config);
+							   }
+						   }
+						   config.close_config_file();
+                       } catch (Exception e) {
+                           throw new RuntimeException(e);
+                       }
+
+
+	                   Toast.makeText(MainActivity.this, getString(R.string.patch_settings_saved), Toast.LENGTH_SHORT).show();
+	               }
+	           })
+	           .setNegativeButton(android.R.string.cancel, null)
+	           .create().show();
+	}
+	
 	static void mk_dirs(){
 		String[] sub_dir_paths={
 				"aps3e",

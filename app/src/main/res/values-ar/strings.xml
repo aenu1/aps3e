@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="patch_manager">مدير الرقع</string>
+	<string name="download_patch_table">تنزيل جدول الرقع</string>
+	<string name="patch_downloaded_info">ملف الرقعة: patch.yml\nالحجم: %s</string>
+	<string name="patch_not_downloaded">لم يتم تنزيل جدول الرقع بعد</string>
+	<string name="delete_patch">حذف الرقعة</string>
+	<string name="patch">رقعة</string>
+	<string name="no_patches_available">لا توجد رقعات متاحة لهذه اللعبة.</string>
+	<string name="apply">تطبيق</string>
+	<string name="patch_settings_saved">تم حفظ إعدادات الرقعة</string>
+
 	<string name="game_data_manager">مدير بيانات اللعبة</string>
 	<string name="game_data_manager_desc">00000001</string>
 	<string name="import_game_data">استيراد بيانات اللعبة</string>
