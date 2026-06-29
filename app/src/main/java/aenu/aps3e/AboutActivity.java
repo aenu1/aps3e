@@ -215,6 +215,9 @@ public class AboutActivity extends AppCompatActivity {
                 + "2.39(2026-05-29)\n"
                 + " *更新RPCS3版本\n"
                 + " *加密版ISO支持（需要对应的.dkey或.key文件）\n"
+                + "2.40(2026-06-30)\n"
+                + " *修复Mali设备的闪烁问题（感谢o-bin)\n"
+                + " *补丁支持\n"
                 + " \n";
 
         return log;
