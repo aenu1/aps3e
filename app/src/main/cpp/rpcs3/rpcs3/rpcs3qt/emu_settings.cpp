@@ -1038,8 +1038,7 @@ QString emu_settings::GetLocalizedSetting(const QString& original, emu_settings_
 	case emu_settings_type::ThreadSchedulerMode:
 		switch (static_cast<thread_scheduler_mode>(index))
 		{
-		case thread_scheduler_mode::old: return tr("RPCS3 Scheduler", "Thread Scheduler Mode");
-		case thread_scheduler_mode::alt: return tr("RPCS3 Alternative Scheduler", "Thread Scheduler Mode");
+		case thread_scheduler_mode::affinity: return tr("Affinity", "Thread Scheduler Mode");
 		case thread_scheduler_mode::os: return tr("Operating System", "Thread Scheduler Mode");
 		}
 		break;
