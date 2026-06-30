@@ -362,6 +362,14 @@ public class Emulator extends aenu.emulator.Emulator
 			return enabledPatches;
 		}
 
+		private static void add(List<PatchManager.PatchInfo> gamePatches, PatchManager.PatchInfo patch){
+			for(PatchManager.PatchInfo patch2 : gamePatches){
+				if(patch2.name.equals(patch.name))
+					return;
+			}
+			gamePatches.add(patch);
+		}
+
 		public static List<PatchManager.PatchInfo> getPatchesForGame(String serial, List<PatchManager.PatchInfo> allPatches,
 																				Map<String, Boolean> enabledPatches) {
 			List<PatchManager.PatchInfo> gamePatches = new ArrayList<>();
@@ -374,7 +382,7 @@ public class Emulator extends aenu.emulator.Emulator
 							break;
 						}
 					}
-					gamePatches.add(patch);
+					add(gamePatches, patch);
 				}
 			}
 			return gamePatches;
