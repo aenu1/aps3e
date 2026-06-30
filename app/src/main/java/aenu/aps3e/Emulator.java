@@ -387,11 +387,23 @@ public class Emulator extends aenu.emulator.Emulator
 		}
 
 		public static List<PatchManager.PatchInfo> getAllLocalPatches() {
-			File patchFile = Application.get_patch_yml_file();
+			/*File patchFile = Application.get_patch_yml_file();
 			if (patchFile.exists()) {
 				return parseAllPatches(patchFile.getAbsolutePath());
 			}
-			return new ArrayList<>();
+			return new ArrayList<>();*/
+			ArrayList<PatchManager.PatchInfo> patches = new ArrayList<>();
+			if(Application.get_patches_dir().exists()&&Application.get_patches_dir().isDirectory()){
+				File[] files = Application.get_patches_dir().listFiles();
+				if (files == null)
+					return patches;
+				for (File file : files) {
+					if(file.isFile()&&file.getName().endsWith(".yml")){
+						patches.addAll(PatchManager.parseAllPatches(file.getAbsolutePath()));
+					}
+				}
+			}
+			return patches;
 		}
 
 		public static Map<String, Boolean> getEnabledLocalPatches() {
