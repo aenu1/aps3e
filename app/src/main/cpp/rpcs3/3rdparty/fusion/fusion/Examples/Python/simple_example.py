@@ -1,7 +1,8 @@
+import sys
+
 import imufusion
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
 
 # Import sensor data
 data = np.genfromtxt("sensor_data.csv", delimiter=",", skip_header=1)
@@ -31,11 +32,14 @@ axes[1].legend()
 
 # Process sensor data
 ahrs = imufusion.Ahrs()
+
+ahrs.set_settings(imufusion.AhrsSettings(sample_rate=100))  # Hz
+
 euler = np.empty((len(timestamp), 3))
 
 for index in range(len(timestamp)):
-    ahrs.update_no_magnetometer(gyroscope[index], accelerometer[index], 1 / 100)  # 100 Hz sample rate
-    euler[index] = ahrs.quaternion.to_euler()
+    ahrs.update_no_magnetometer(gyroscope[index], accelerometer[index])
+    euler[index] = imufusion.quaternion_to_euler(ahrs.get_quaternion())
 
 # Plot Euler angles
 axes[2].plot(timestamp, euler[:, 0], "tab:red", label="Roll")

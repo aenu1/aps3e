@@ -399,7 +399,7 @@ namespace rsx
 
 				for (u32 _index = first; _index < first + count; _index++)
 				{
-					const auto value = read_from_ptr<be_t<T>>(ptr, _index * sizeof(T));
+					const auto value = read_from_ptr_unsafe<be_t<T>>(ptr, _index * sizeof(T));
 
 					if (value == restart)
 					{
@@ -680,7 +680,7 @@ namespace rsx
 				ar(u32{0});
 			}
 		}
-		else if (u32 count = ar)
+		else if (u32 count{ar})
 		{
 			restore_fifo_count = count;
 			ar(restore_fifo_cmd);
@@ -3414,7 +3414,7 @@ namespace rsx
 		current_display_buffer = buffer;
 		m_queued_flip.emu_flip = true;
 		m_queued_flip.in_progress = true;
-		m_queued_flip.skip_frame |= g_cfg.video.disable_video_output && !g_cfg.video.perf_overlay.perf_overlay_enabled;
+		m_queued_flip.skip_frame |= g_cfg.video.disable_video_output && !g_cfg.video.perf_overlay.enabled;
 
 		flip(m_queued_flip);
 

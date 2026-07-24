@@ -166,7 +166,7 @@ namespace gui
 
 		QStringList get_dir_entries(const QDir& dir, const QStringList& name_filters, bool full_path)
 		{
-			QFileInfoList entries = dir.entryInfoList(name_filters, QDir::Files);
+			const QFileInfoList entries = dir.entryInfoList(name_filters, QDir::Files);
 			QStringList res;
 			for (const QFileInfo& entry : entries)
 			{
@@ -403,7 +403,7 @@ namespace gui
 				// Get Icon for the gs_frame from path. this handles presumably all possible use cases
 				std::vector<std::string> path_list;
 
-				const bool is_archive = is_file_iso(path);
+				const bool is_archive = is_iso_file(path);
 				if (is_archive)
 				{
 					icon_path = "PS3_GAME/ICON0.PNG";
@@ -705,14 +705,20 @@ namespace gui
 			return QString("%1 days ago %2").arg(current_date - exctrated_date).arg(date.toString(fmt_relative));
 		}
 
-		bool load_iso_icon(QPixmap& icon, const std::string& icon_path, const std::string& archive_path)
+		bool load_iso_icon(QPixmap& icon, const std::string& icon_path, const std::string& archive_path, const std::string& game_dir)
 		{
 			if (icon_path.empty() || archive_path.empty()) return false;
-			if (!is_file_iso(archive_path)) return false;
 
-			// Check cache first — avoids constructing a full iso_archive just for the icon.
+			bool is_raw_device = false;
+			const bool is_archive = is_iso_file(archive_path);
+
+			if (!is_archive) return false;
+
+			// With the exception of raw device, check cache first — avoids constructing a full iso_archive just for the icon.
 			iso_metadata_cache_entry cache_entry{};
-			if (iso_cache::load(archive_path, cache_entry) && !cache_entry.icon_data.empty())
+			const std::string cache_key = game_dir.empty() ? archive_path : archive_path + "//" + game_dir;
+
+			if (!is_raw_device && iso_cache::load(archive_path, cache_key, cache_entry) && !cache_entry.icon_data.empty())
 			{
 				const QByteArray data(reinterpret_cast<const char*>(cache_entry.icon_data.data()),
 				                      static_cast<qsizetype>(cache_entry.icon_data.size()));
@@ -732,7 +738,7 @@ namespace gui
 			return icon.loadFromData(data);
 		}
 
-		bool load_icon(QPixmap& icon, const std::string& icon_path, const std::string& archive_path)
+		bool load_icon(QPixmap& icon, const std::string& icon_path, const std::string& archive_path, const std::string& game_dir)
 		{
 			if (icon_path.empty()) return false;
 
@@ -741,7 +747,7 @@ namespace gui
 				return icon.load(QString::fromStdString(icon_path));
 			}
 
-			return load_iso_icon(icon, icon_path, archive_path);
+			return load_iso_icon(icon, icon_path, archive_path, game_dir);
 		}
 
 		QString format_timestamp(s64 time, const QString& fmt)

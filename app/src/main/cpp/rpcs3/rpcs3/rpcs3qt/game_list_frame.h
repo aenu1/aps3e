@@ -3,6 +3,8 @@
 #include "game_list.h"
 #include "game_list_actions.h"
 #include "custom_dock_widget.h"
+#include "content_integrity.h"
+
 #include "Utilities/lockless.h"
 #include "Utilities/mutex.h"
 #include "util/auto_typemap.hpp"
@@ -18,6 +20,7 @@
 #include <optional>
 #include <set>
 
+class config_database;
 class game_list_table;
 class game_list_grid;
 class gui_settings;
@@ -53,7 +56,12 @@ public:
 
 	void SetShowHidden(bool show);
 
-	game_compatibility* GetGameCompatibility() const { return m_game_compat; }
+	content_integrity* GetIsoIntegrity() const { return ensure(m_iso_integrity); }
+	content_integrity* GetPsnContentIntegrity() const { return ensure(m_psn_content_integrity); }
+	content_integrity* GetPsnDlcIntegrity() const { return ensure(m_psn_dlc_integrity); }
+	content_integrity* GetPsnUpdateIntegrity() const { return ensure(m_psn_update_integrity); }
+	game_compatibility* GetGameCompatibility() const { return ensure(m_game_compat); }
+	config_database* GetConfigDatabase() const { return ensure(m_config_db); }
 	const std::vector<game_info>& GetGameInfo() const { return m_game_data; }
 	std::shared_ptr<game_list_actions> actions() const { return m_game_list_actions; }
 	std::shared_ptr<gui_settings> get_gui_settings() const { return m_gui_settings; }
@@ -66,6 +74,8 @@ public:
 	bool IsEntryVisible(const game_info& game, bool search_fallback = false) const;
 
 	void ShowCustomConfigIcon(const game_info& game);
+
+	void stop_movie();
 
 	// Enqueue slot for refreshed signal
 	// Allowing for an individual container for each distinct use case (currently disabled and contains only one such entry)
@@ -95,6 +105,7 @@ private Q_SLOTS:
 	void OnParsingFinished();
 	void OnRefreshFinished();
 	void OnCompatFinished();
+	void OnConfigDatabaseFinished();
 	void OnColClicked(int col);
 	void ShowContextMenu(const QPoint& pos);
 	void doubleClickedSlot(QTableWidgetItem* item);
@@ -150,7 +161,12 @@ private:
 
 	// Game List
 	game_list_table* m_game_list = nullptr;
+	content_integrity* m_iso_integrity = nullptr;
+	content_integrity* m_psn_content_integrity = nullptr;
+	content_integrity* m_psn_dlc_integrity = nullptr;
+	content_integrity* m_psn_update_integrity = nullptr;
 	game_compatibility* m_game_compat = nullptr;
+	config_database* m_config_db = nullptr;
 	progress_dialog* m_progress_dialog = nullptr;
 	std::map<int, QAction*> m_column_acts;
 	Qt::SortOrder m_col_sort_order{};

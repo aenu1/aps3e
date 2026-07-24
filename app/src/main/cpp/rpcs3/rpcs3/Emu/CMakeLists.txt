@@ -1,6 +1,3 @@
-
-include(ConfigureCompiler)
-
 add_library(rpcs3_emu STATIC
     cache_utils.cpp
     games_config.cpp
@@ -80,6 +77,7 @@ target_sources(rpcs3_emu PRIVATE
     ../../Utilities/sema.cpp
     ../../Utilities/simple_ringbuf.cpp
     ../../Utilities/stack_trace.cpp
+    ../../Utilities/stereo_config.cpp
     ../../Utilities/StrFmt.cpp
     ../../Utilities/Thread.cpp
     ../../Utilities/version.cpp
@@ -130,6 +128,7 @@ target_sources(rpcs3_emu PRIVATE
     ../Loader/TAR.cpp
     ../Loader/ISO.cpp
     ../Loader/iso_cache.cpp
+    ../Loader/content_validation.cpp
     ../Loader/TROPUSR.cpp
     ../Loader/TRP.cpp
 )
@@ -337,9 +336,17 @@ target_sources(rpcs3_emu PRIVATE
     Cell/Modules/HLE_PATCHES.cpp
     Cell/Modules/libad_async.cpp
     Cell/Modules/libad_core.cpp
+    Cell/Modules/libavcdec.cpp
+    Cell/Modules/libdivx311dec.cpp
+    Cell/Modules/libdivxdec.cpp
     Cell/Modules/libmedi.cpp
     Cell/Modules/libmixer.cpp
+    Cell/Modules/libmvcdec.cpp
+    Cell/Modules/libsjvtd.cpp
+    Cell/Modules/libsmvd2.cpp
+    Cell/Modules/libsmvd4.cpp
     Cell/Modules/libsnd3.cpp
+    Cell/Modules/libsvc1d.cpp
     Cell/Modules/libsynth2.cpp
     Cell/Modules/sceNp2.cpp
     Cell/Modules/sceNpClans.cpp
@@ -403,6 +410,7 @@ target_sources(rpcs3_emu PRIVATE
     Io/Dimensions.cpp
     Io/evdev_gun_handler.cpp
     Io/GameTablet.cpp
+    Io/gem_config.cpp
     Io/GHLtar.cpp
     Io/GunCon3.cpp
     Io/Infinity.cpp
@@ -653,6 +661,7 @@ if(NOT WIN32)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
 endif()
 find_package(Threads REQUIRED)
+
 if(NOT ANDROID)
     target_link_libraries(rpcs3_emu
             PUBLIC
@@ -661,9 +670,9 @@ if(NOT ANDROID)
     )
     #3rdparty::libevdevx
 endif()
+
 target_link_libraries(rpcs3_emu
     PUBLIC
-        3rdparty::protobuf
         3rdparty::llvm
         3rdparty::asmjit
         3rdparty::ffmpeg
@@ -678,6 +687,8 @@ target_link_libraries(rpcs3_emu
         3rdparty::cubeb
         3rdparty::soundtouch
         3rdparty::miniupnpc
+        3rdparty::libevdev
+        3rdparty::protobuf
         3rdparty::pugixml
         3rdparty::vulkanmemoryallocator
         Threads::Threads

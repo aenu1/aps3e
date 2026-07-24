@@ -10,6 +10,7 @@
 #include "game_list_table.h"
 #include "game_list_grid.h"
 #include "game_list_grid_item.h"
+#include "config_database.h"
 
 #include "Emu/System.h"
 #include "Emu/vfs_config.h"
@@ -42,6 +43,7 @@ game_list_frame::game_list_frame(std::shared_ptr<gui_settings> gui_settings, std
 	, m_persistent_settings(std::move(persistent_settings))
 {
 	setObjectName("gamelist");
+	setFeatures(features() & ~QDockWidget::DockWidgetClosable);
 
 	m_game_list_actions = std::make_shared<game_list_actions>(this, m_gui_settings);
 
@@ -73,7 +75,12 @@ game_list_frame::game_list_frame(std::shared_ptr<gui_settings> gui_settings, std
 	m_game_list->installEventFilter(this);
 	m_game_list->verticalScrollBar()->installEventFilter(this);
 
-	m_game_compat = new game_compatibility(m_gui_settings, this);
+	m_iso_integrity = new content_integrity(this, content_file_type::ISO);
+	m_psn_content_integrity = new content_integrity(this, content_file_type::PSN_CONTENT);
+	m_psn_dlc_integrity = new content_integrity(this, content_file_type::PSN_DLC);
+	m_psn_update_integrity = new content_integrity(this, content_file_type::PSN_UPDATE);
+	m_game_compat = new game_compatibility(this);
+	m_config_db = new config_database(this);
 
 	m_central_widget = new QStackedWidget(this);
 	m_central_widget->addWidget(m_game_list);
@@ -198,6 +205,22 @@ game_list_frame::game_list_frame(std::shared_ptr<gui_settings> gui_settings, std
 	{
 		OnCompatFinished();
 		QMessageBox::warning(this, tr("Warning!"), tr("Failed to retrieve the online compatibility database!\nFalling back to local database.\n\n%0").arg(error));
+	});
+
+	connect(m_config_db, &config_database::download_started, this, [this]()
+	{
+		for (const auto& game : m_game_data)
+		{
+			game->has_database_config = false;
+		}
+		Refresh();
+	});
+	connect(m_config_db, &config_database::download_finished, this, &game_list_frame::OnConfigDatabaseFinished);
+	connect(m_config_db, &config_database::download_canceled, this, &game_list_frame::OnConfigDatabaseFinished);
+	connect(m_config_db, &config_database::download_error, this, [this](const QString& error)
+	{
+		OnConfigDatabaseFinished();
+		QMessageBox::warning(this, tr("Warning!"), tr("Failed to retrieve the online config database!\nFalling back to local database.\n\n%0").arg(error));
 	});
 
 	connect(m_game_list, &game_list::FocusToSearchBar, this, &game_list_frame::FocusToSearchBar);
@@ -528,20 +551,24 @@ void game_list_frame::OnParsingFinished()
 	const auto add_game = [this, localized_title, localized_icon, localized_movie, dev_flash, game_icon_path, _hdd,
 	                       cat_unknown_localized = localized.category.unknown.toStdString(), cat_unknown = cat::cat_unknown.toStdString(),
 	                       play_hover_movies = m_play_hover_movies, play_hover_music = m_play_hover_music, show_custom_icons = m_show_custom_icons]
-	                       (const std::string& dir_or_elf)
+	                       (const std::string& dir_or_elf, const std::string& game_dir = "PS3_GAME")
 	{
 		std::unique_ptr<iso_archive> archive;
 		iso_metadata_cache_entry cache_entry{};
-		const bool is_iso = is_file_iso(dir_or_elf);
-		
-		if (is_iso)
+		bool is_raw_device = false;
+		const bool is_archive = is_iso_file(dir_or_elf);
+		std::string iso_cache_key;
+
+		if (is_archive)
 		{
-			// Only construct iso_archive (which walks the full directory tree)
-			// when no valid cache entry exists for this ISO path + mtime.
-			if (!iso_cache::load(dir_or_elf, cache_entry))
+			iso_cache_key = (game_dir == "PS3_GAME") ? dir_or_elf : dir_or_elf + "//" + game_dir;
+			// Only construct iso_archive (which walks the full directory tree) in case of raw device or
+			// when no valid cache entry exists for this ISO path + mtime
+			if (is_raw_device || !iso_cache::load(dir_or_elf, iso_cache_key, cache_entry))
 			{
 				archive = std::make_unique<iso_archive>(dir_or_elf);
 			}
+
 			// Track this ISO path for cache cleanup after scan completes.
 			std::lock_guard lock(m_path_mutex);
 			m_scanned_iso_paths.insert(dir_or_elf);
@@ -558,19 +585,16 @@ void game_list_frame::OnParsingFinished()
 
 		gui_game_info game{};
 		game.info.path = dir_or_elf;
+		game.info.game_dir = (game_dir == "PS3_GAME") ? "" : game_dir;
 
 		const Localized thread_localized;
 
-		const std::string sfo_dir = (archive || !cache_entry.psf_data.empty()) ? "PS3_GAME" : rpcs3::utils::get_sfo_dir_from_game_path(dir_or_elf);
+		const std::string sfo_dir = (archive || !cache_entry.psf_data.empty()) ? game_dir : rpcs3::utils::get_sfo_dir_from_game_path(dir_or_elf);
 		const std::string sfo_path = sfo_dir + "/PARAM.SFO";
 
 		// Load PSF: from archive on cache miss, rehydrate from cached SFO bytes on hit.
 		psf::registry psf{};
-		if (archive)
-		{
-			psf = archive->open_psf(sfo_path);
-		}
-		else if (!cache_entry.psf_data.empty())
+		if (!cache_entry.psf_data.empty())
 		{
 			psf = psf::load_object(fs::make_stream<std::vector<u8>>(std::vector<u8>(cache_entry.psf_data)), sfo_path);
 			// Fallback to archive scan if cached PSF is corrupted or missing critical fields.
@@ -579,14 +603,23 @@ void game_list_frame::OnParsingFinished()
 				&& !psf::get_string(psf, "CATEGORY", "").empty();
 			if (!psf_valid)
 			{
+				game_list_log.warning("Cached psf for iso not valid: '%s'", game.info.path);
 				archive = std::make_unique<iso_archive>(dir_or_elf);
-				psf = archive->open_psf(sfo_path);
 				cache_entry = {}; // Reset so the cache gets rewritten after scan.
+				psf = {};
 			}
 		}
-		else
+
+		if (psf.empty())
 		{
-			psf = psf::load_object(sfo_path);
+			if (archive)
+			{
+				psf = archive->open_psf(sfo_path);
+			}
+			else
+			{
+				psf = psf::load_object(sfo_path);
+			}
 		}
 
 		const std::string_view title_id = psf::get_string(psf, "TITLE_ID", "");
@@ -676,16 +709,16 @@ void game_list_frame::OnParsingFinished()
 
 		if (play_hover_movies)
 		{
-			if (!cache_entry.movie_path.empty() && !archive)
-			{
-				// Cache hit — restore previously resolved movie path.
-				game.info.movie_path = cache_entry.movie_path;
-				game.has_hover_pam = true;
-			}
 			if (std::string movie_path = game_icon_path + game.info.serial + "/hover.gif"; file_exists(movie_path))
 			{
 				game.info.movie_path = std::move(movie_path);
 				game.has_hover_gif = true;
+			}
+			else if (!cache_entry.movie_path.empty() && !archive)
+			{
+				// Cache hit — restore previously resolved movie path.
+				game.info.movie_path = cache_entry.movie_path;
+				game.has_hover_pam = true;
 			}
 			else if (std::string movie_path = sfo_dir + "/" + localized_movie; file_exists(movie_path))
 			{
@@ -701,22 +734,22 @@ void game_list_frame::OnParsingFinished()
 
 		if (play_hover_music)
 		{
-			if(!cache_entry.audio_path.empty() && !archive)
+			if (!cache_entry.audio_path.empty() && !archive)
 			{
 				// Cache hit — restore previously resolved audio path.
 				game.info.audio_path = cache_entry.audio_path;
 				game.has_audio_file = true;
 			}
-			if (std::string audio_path = sfo_dir + "/SND0.AT3"; file_exists(audio_path))
+			else if (std::string audio_path = sfo_dir + "/SND0.AT3"; file_exists(audio_path))
 			{
 				game.info.audio_path = std::move(audio_path);
 				game.has_audio_file = true;
 			}
 		}
 
-		// On cache miss for an ISO, persist the resolved metadata so subsequent
-		// launches skip iso_archive construction entirely.
-		if (archive && is_iso)
+		// With the exception of raw device, on cache miss for an ISO, persist the resolved metadata so subsequent
+		// launches skip iso_archive construction entirely
+		if (archive && is_archive && !is_raw_device)
 		{
 			fs::stat_t iso_stat{};
 			if (fs::get_stat(dir_or_elf, iso_stat))
@@ -739,7 +772,7 @@ void game_list_frame::OnParsingFinished()
 					}
 				}
 
-				iso_cache::save(dir_or_elf, cache_entry);
+				iso_cache::save(dir_or_elf, (game_dir == "PS3_GAME") ? dir_or_elf : dir_or_elf + "//" + game_dir, cache_entry);
 			}
 		}
 
@@ -796,6 +829,7 @@ void game_list_frame::OnParsingFinished()
 
 		game.localized_category = std::move(qt_cat);
 		game.compat = m_game_compat->GetCompatibility(game.info.serial);
+		game.has_database_config = m_config_db->has_config(game.info.serial);
 		game.has_custom_config = fs::is_file(rpcs3::utils::get_custom_config_path(game.info.serial));
 		game.has_custom_pad_config = fs::is_file(rpcs3::utils::get_custom_input_config_path(game.info.serial));
 
@@ -829,7 +863,56 @@ void game_list_frame::OnParsingFinished()
 
 		if (entry.is_from_yml)
 		{
-			if (fs::is_file(entry.path + "/PARAM.SFO"))
+			/* if (is_iso_file(entry.path))
+			{
+				std::vector<std::string> subdirs;
+
+				if (iso_cache::load_index(entry.path, subdirs))
+				{
+					for (const std::string& name : subdirs)
+					{
+						if (m_refresh_watcher.isCanceled()) break;
+						add_game(entry.path, name);
+					}
+
+					return;
+				}
+
+				iso_archive archive(entry.path);
+				const iso_fs_node& root = archive.root();
+				const std::regex ps3_gm_regex("^PS3_GM[[:digit:]]{2}$");
+
+				for (const auto& child : root.children)
+				{
+					if (m_refresh_watcher.isCanceled())
+					{
+						break;
+					}
+					if (!child->metadata.is_directory)
+					{
+						continue;
+					}
+
+					const std::string& name = child->metadata.name;
+					if (name == "PS3_GAME" || std::regex_match(name, ps3_gm_regex))
+					{
+						subdirs.push_back(name);
+						add_game(entry.path, name);
+					}
+				}
+				if (subdirs.empty())
+				{
+					add_game(entry.path);
+					subdirs.push_back("PS3_GAME");
+				}
+				if (!m_refresh_watcher.isCanceled())
+				{
+					iso_cache::save_index(entry.path, subdirs);
+				}
+
+				return;
+			}
+			else */if (fs::is_file(entry.path + "/PARAM.SFO"))
 			{
 				push_path(entry.path, legit_paths);
 			}
@@ -861,10 +944,6 @@ void game_list_frame::OnParsingFinished()
 				}
 
 				add_disc_dir(entry.path, legit_paths);
-			}
-			else if (is_file_iso(entry.path))
-			{
-				push_path(entry.path, legit_paths);
 			}
 			else
 			{
@@ -1019,6 +1098,15 @@ void game_list_frame::OnCompatFinished()
 	Refresh();
 }
 
+void game_list_frame::OnConfigDatabaseFinished()
+{
+	for (const auto& game : m_game_data)
+	{
+		game->has_database_config = m_config_db->has_config(game->info.serial);
+	}
+	Refresh();
+}
+
 void game_list_frame::ToggleCategoryFilter(const QStringList& categories, bool show)
 {
 	QStringList& filters = m_is_list_layout ? m_category_filters : m_grid_category_filters;
@@ -1147,6 +1235,12 @@ void game_list_frame::ShowCustomConfigIcon(const game_info& game)
 	m_game_list->set_custom_config_icon(game);
 
 	RepaintIcons();
+}
+
+void game_list_frame::stop_movie()
+{
+	if (m_game_list) m_game_list->stop_movie();
+	if (m_game_grid) m_game_grid->stop_movie();
 }
 
 void game_list_frame::ResizeIcons(int slider_pos)

@@ -197,11 +197,12 @@ struct alignas(16) spu_channel
 
 public:
 	static constexpr u32 off_wait  = 32;
-	static constexpr u32 off_occupy = 32;
+	static constexpr u32 off_occupy = 33;
 	static constexpr u32 off_count = 63;
 	static constexpr u64 bit_wait  = 1ull << off_wait;
 	static constexpr u64 bit_occupy = 1ull << off_occupy;
 	static constexpr u64 bit_count = 1ull << off_count;
+	static constexpr u64 occupy_ored_wait = bit_wait | bit_occupy; 
 
 	// Returns true on success
 	bool try_push(u32 value)
@@ -252,20 +253,24 @@ public:
 					// Other thread has inserted a value through jostling_value, retry
 					continue;
 				}
+
+				// Turn off waiting bit manually (must succeed because waiting bit can only be resetted by the thread pushed to jostling_value)
+				if (~this->data.fetch_and(~occupy_ored_wait) & bit_wait)
+				{
+					// Could be fatal or at emulation stopping, to be checked by the caller
+					ensure(false);
+				}
+
+				// Fallthrough to notification
+				ensure(old & bit_wait);
 			}
 
 			if (old & bit_wait)
 			{
-				// Turn off waiting bit manually (must succeed because waiting bit can only be resetted by the thread pushed to jostling_value)
-				if (!this->data.bit_test_reset(off_wait))
-				{
-					// Could be fatal or at emulation stopping, to be checked by the caller
-					return { (old & bit_count) == 0, 0, false, false };
-				}
-
 				if (!postpone_notify)
 				{
-					utils::bless<atomic_t<u32>>(&data)[1].notify_one();
+					const usz is_le = std::endian::native == std::endian::little ? 1 : 0;
+					utils::bless<atomic_t<u32>>(&data)[is_le].notify_one();
 				}
 			}
 
@@ -276,7 +281,8 @@ public:
 
 	void notify()
 	{
-		utils::bless<atomic_t<u32>>(&data)[1].notify_one();
+		const usz is_le = std::endian::native == std::endian::little ? 1 : 0;
+		utils::bless<atomic_t<u32>>(&data)[is_le].notify_one();
 	}
 
 	// Returns true on success
@@ -330,7 +336,8 @@ public:
 
 		if (old & bit_wait)
 		{
-			utils::bless<atomic_t<u32>>(&data)[1].notify_one();
+			const usz is_le = std::endian::native == std::endian::little ? 1 : 0;
+			utils::bless<atomic_t<u32>>(&data)[is_le].notify_one();
 		}
 
 		return static_cast<u32>(old);
@@ -840,7 +847,7 @@ public:
 
 	std::array<std::array<u8, 4>, SPU_LS_SIZE / 128> getllar_wait_time{};
 	std::array<std::array<u8, 16>, SPU_LS_SIZE / 128> eventstat_wait_time{};
-
+ 
 	void push_snr(u32 number, u32 value);
 	static void do_dma_transfer(spu_thread* _this, const spu_mfc_cmd& args, u8* ls);
 	bool do_dma_check(const spu_mfc_cmd& args);

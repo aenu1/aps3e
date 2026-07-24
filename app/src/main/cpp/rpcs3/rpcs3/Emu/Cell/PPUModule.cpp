@@ -51,6 +51,7 @@ std::unordered_map<std::string, ppu_static_module*>& ppu_module_manager::get()
 std::vector<std::string> g_ppu_function_names;
 
 atomic_t<u32> liblv2_begin = 0, liblv2_end = 0;
+atomic_t<bool> libusbd_active = false;
 
 extern u32 ppu_generate_id(std::string_view name)
 {
@@ -308,10 +309,18 @@ static void ppu_initialize_modules(ppu_linkage_info* link, utils::serial* ar = n
 		&ppu_module_manager::cellWMAPROdec,
 		&ppu_module_manager::libad_async,
 		&ppu_module_manager::libad_core,
+		&ppu_module_manager::libavcdec,
+		&ppu_module_manager::libdivx311dec,
+		&ppu_module_manager::libdivxdec,
 		&ppu_module_manager::libfs_utility_init,
 		&ppu_module_manager::libmedi,
 		&ppu_module_manager::libmixer,
+		&ppu_module_manager::libmvcdec,
+		&ppu_module_manager::libsjvtd,
+		&ppu_module_manager::libsmvd2,
+		&ppu_module_manager::libsmvd4,
 		&ppu_module_manager::libsnd3,
+		&ppu_module_manager::libsvc1d,
 		&ppu_module_manager::libsynth2,
 		&ppu_module_manager::sceNp,
 		&ppu_module_manager::sceNpBasicLimited,
@@ -1176,9 +1185,11 @@ static void ppu_check_patch_spu_images(const ppu_module<lv2_obj>& mod, const ppu
 
 		ensure(data.size() <= pos && index <= data.size());
 
+		const auto data_to_search = data.substr(index, pos - index);
+
 		for (std::string_view value : values)
 		{
-			if (usz pos0 = data.substr(index, pos - index).find(value); pos0 != umax && pos0 + index < pos)
+			if (usz pos0 = data_to_search.find(value); pos0 != umax && pos0 + index < pos)
 			{
 				pos = static_cast<u32>(pos0 + index);
 			}
@@ -1202,12 +1213,22 @@ static void ppu_check_patch_spu_images(const ppu_module<lv2_obj>& mod, const ppu
 		{
 			const u32 old_prefix_addr = prefix_addr;
 
-			auto search_guid_pattern = [&](u32 index, std::string_view data_span, s32 advance_index, u32 lower_bound, u32 uppper_bound) -> u32
+			auto search_guid_pattern = [&](u32 index, std::string_view data_span, s32 advance_index, u32 lower_bound, u32 upper_bound) -> u32
 			{
-				for (u32 search = index & -16, tries = 16 * 64; tries && search >= lower_bound && search < uppper_bound; tries = tries - 1, search = advance_index < 0 ? utils::sub_saturate<u32>(search, 0 - advance_index) : search + advance_index)
+				ensure(upper_bound <= data_span.size());
+				ensure(lower_bound <= data_span.size());
+				ensure(lower_bound <= upper_bound);
+
+				for (u32 search = index & -16, tries = 16 * 64; tries && search >= lower_bound && search < (upper_bound & -16); tries = tries - 1, search = advance_index < 0 ? utils::sub_saturate<u32>(search, 0 - advance_index) : search + advance_index)
 				{
 					if (seg_view[search] != 0x42 && seg_view[search] != 0x43)
 					{
+						if (search == 0 && advance_index <= 0)
+						{
+							// Fast early-out
+							break;
+						}
+
 						continue;
 					}
 
@@ -1251,7 +1272,7 @@ static void ppu_check_patch_spu_images(const ppu_module<lv2_obj>& mod, const ppu
 			{
 				const u32 instruction = std::min<u32>(search_guid_pattern(addr_last, ls_segment, +16, 0, ::size32(ls_segment)), find_first_of_multiple(ls_segment, prefixes, addr_last));
 
-				if (instruction != umax && std::memcmp(ls_segment.data() + instruction, "\x24\0\x40\x80", 4) == 0)
+				if (instruction < ls_segment.size() && std::memcmp(ls_segment.data() + instruction, "\x24\0\x40\x80", 4) == 0)
 				{
 					if (instruction % 4 != prefix_addr % 4)
 					{
@@ -1920,6 +1941,10 @@ shared_ptr<lv2_prx> ppu_load_prx(const ppu_prx_object& elf, bool virtual_load, c
 		liblv2_begin = prx->segs[0].addr;
 		liblv2_end = prx->segs[0].addr + prx->segs[0].size;
 	}
+	if (prx->path.ends_with("sys/external/libusbd.sprx"sv))
+	{
+		libusbd_active = true;
+	}
 
 	std::vector<u32> applied;
 
@@ -2053,6 +2078,10 @@ void ppu_unload_prx(const lv2_prx& prx)
 	{
 		liblv2_begin = 0;
 		liblv2_end = 0;
+	}
+	if (prx.path.ends_with("sys/external/libusbd.sprx"sv))
+	{
+		libusbd_active = false;
 	}
 
 	// Format patch name

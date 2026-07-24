@@ -2,43 +2,45 @@
 #define COMPASS_H
 
 #include "../../Fusion/Fusion.h"
-#include "Helpers.h"
-#include <numpy/arrayobject.h>
+#include "Convention.h"
+#include "NpArray.h"
 #include <Python.h>
-#include <stdlib.h>
 
 static PyObject *compass(PyObject *self, PyObject *args) {
+    PyObject *accelerometer_object;
+    PyObject *magnetometer_object;
+    int convention_int = fusionAhrsDefaultSettings.convention;
+
+    if (PyArg_ParseTuple(args, "OO|i", &accelerometer_object, &magnetometer_object, &convention_int) == 0) {
+        return NULL;
+    }
+
+    FusionVector accelerometer;
+
+    if (np_array_1x3_to(accelerometer.array, accelerometer_object) != 0) {
+        return NULL;
+    }
+
+    FusionVector magnetometer;
+
+    if (np_array_1x3_to(magnetometer.array, magnetometer_object) != 0) {
+        return NULL;
+    }
+
     FusionConvention convention;
-    PyArrayObject *accelerometer_array;
-    PyArrayObject *magnetometer_array;
 
-    const char *error = PARSE_TUPLE(args, "iO!O!", &convention, &PyArray_Type, &accelerometer_array, &PyArray_Type, &magnetometer_array);
-    if (error != NULL) {
-        PyErr_SetString(PyExc_TypeError, error);
+    if (convention_from(&convention, convention_int) != 0) {
         return NULL;
     }
 
-    FusionVector accelerometer_vector;
-    FusionVector magnetometer_vector;
+    const float heading = FusionCompass(accelerometer, magnetometer, convention);
 
-    error = parse_array(accelerometer_vector.array, accelerometer_array, 3);
-    if (error != NULL) {
-        PyErr_SetString(PyExc_TypeError, error);
-        return NULL;
-    }
-
-    error = parse_array(magnetometer_vector.array, magnetometer_array, 3);
-    if (error != NULL) {
-        PyErr_SetString(PyExc_TypeError, error);
-        return NULL;
-    }
-
-    return Py_BuildValue("f", FusionCompass(convention, accelerometer_vector, magnetometer_vector));
+    return PyFloat_FromDouble((double) heading);
 }
 
 static PyMethodDef compass_methods[] = {
-        {"compass", (PyCFunction) compass, METH_VARARGS, ""},
-        {NULL} /* sentinel */
+    {"compass", (PyCFunction) compass, METH_VARARGS, ""},
+    {NULL} /* sentinel */
 };
 
 #endif

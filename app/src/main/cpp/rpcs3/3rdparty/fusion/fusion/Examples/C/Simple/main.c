@@ -2,19 +2,27 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define SAMPLE_PERIOD (0.01f) // replace this with actual sample period
-
 int main() {
+    // Initialise structure
     FusionAhrs ahrs;
     FusionAhrsInitialise(&ahrs);
 
-    while (true) { // this loop should repeat each time new gyroscope data is available
-        const FusionVector gyroscope = {0.0f, 0.0f, 0.0f}; // replace this with actual gyroscope data in degrees/s
-        const FusionVector accelerometer = {0.0f, 0.0f, 1.0f}; // replace this with actual accelerometer data in g
+    FusionAhrsSettings settings = fusionAhrsDefaultSettings;
+    settings.sampleRate = 100.0f; // Hz
 
-        FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer, SAMPLE_PERIOD);
+    FusionAhrsSetSettings(&ahrs, &settings);
 
-        const FusionEuler euler = FusionEulerFrom(FusionAhrsGetQuaternion(&ahrs));
+    // This loop should repeat for each new gyroscope measurement
+    while (true) {
+        // Read sensors (replace with actual sensor data)
+        const FusionVector gyroscope = {0.0f, 0.0f, 0.0f};
+        const FusionVector accelerometer = {0.0f, 0.0f, 1.0f};
+
+        // Update AHRS algorithm
+        FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer);
+
+        // Print Euler angles
+        const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
 
         printf("Roll %0.1f, Pitch %0.1f, Yaw %0.1f\n", euler.angle.roll, euler.angle.pitch, euler.angle.yaw);
     }

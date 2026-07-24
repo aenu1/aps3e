@@ -1,5 +1,6 @@
 add_library(rpcs3_ui STATIC
     about_dialog.cpp
+    anaglyph_settings_dialog.cpp
     auto_pause_settings_dialog.cpp
     basic_mouse_settings_dialog.cpp
     breakpoint_handler.cpp
@@ -11,6 +12,8 @@ add_library(rpcs3_ui STATIC
     clans_settings_dialog.cpp
     config_adapter.cpp
     config_checker.cpp
+    config_database.cpp
+    content_integrity.cpp
     curl_handle.cpp
     custom_dialog.cpp
     custom_table_widget_item.cpp
@@ -21,6 +24,7 @@ add_library(rpcs3_ui STATIC
     dimensions_dialog.cpp
     _discord_utils.cpp
     emu_settings.cpp
+    emu_settings_type.cpp
     elf_memory_dumping_dialog.cpp
     emulated_pad_settings_dialog.cpp
     emulated_logitech_g27_settings_dialog.cpp

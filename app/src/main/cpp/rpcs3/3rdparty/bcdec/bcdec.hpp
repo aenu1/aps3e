@@ -6,17 +6,17 @@
 // MIT LICENSE
 // ===========
 // Copyright (c) 2022 Sergii Kudlai
-//
+// 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
 // the Software without restriction, including without limitation the rights to
 // use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
 // of the Software, and to permit persons to whom the Software is furnished to do
 // so, subject to the following conditions:
-//
+// 
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-//
+// 
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -31,7 +31,6 @@
 
 #include <util/types.hpp>
 
-template <bool BGRA>
 static void bcdec__color_block(const u8* compressedBlock, u8* dstColors, int destinationPitch, bool onlyOpaqueMode) {
 	u16 c0, c1;
 	u32 refColors[4]; /* 0xAABBGGRR */
@@ -54,23 +53,13 @@ static void bcdec__color_block(const u8* compressedBlock, u8* dstColors, int des
 	r = (r0 * 527 + 23) >> 6;
 	g = (g0 * 259 + 33) >> 6;
 	b = (b0 * 527 + 23) >> 6;
-    if constexpr (BGRA) {
-        refColors[0] = 0xFF000000 | (r << 16) | (g << 8) | b;
-	}
-    else {
-        refColors[0] = 0xFF000000 | (b << 16) | (g << 8) | r;
-    }
+	refColors[0] = 0xFF000000 | (r << 16) | (g << 8) | b;
 
 	r = (r1 * 527 + 23) >> 6;
 	g = (g1 * 259 + 33) >> 6;
 	b = (b1 * 527 + 23) >> 6;
+	refColors[1] = 0xFF000000 | (r << 16) | (g << 8) | b;
 
-    if constexpr (BGRA) {
-        refColors[1] = 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-    else {
-        refColors[1] = 0xFF000000 | (b << 16) | (g << 8) | r;
-    }
 	if (c0 > c1 || onlyOpaqueMode)
 	{   /* Standard BC1 mode (also BC3 color block uses ONLY this mode) */
 		/* color_2 = 2/3*color_0 + 1/3*color_1
@@ -78,23 +67,12 @@ static void bcdec__color_block(const u8* compressedBlock, u8* dstColors, int des
 		r = ((2 * r0 + r1) *  351 +   61) >>  7;
 		g = ((2 * g0 + g1) * 2763 + 1039) >> 11;
 		b = ((2 * b0 + b1) *  351 +   61) >>  7;
+		refColors[2] = 0xFF000000 | (r << 16) | (g << 8) | b;
 
-        if constexpr (BGRA) {
-            refColors[2] = 0xFF000000 | (r << 16) | (g << 8) | b;
-        }
-        else {
-            refColors[2] = 0xFF000000 | (b << 16) | (g << 8) | r;
-        }
 		r = ((r0 + r1 * 2) *  351 +   61) >>  7;
 		g = ((g0 + g1 * 2) * 2763 + 1039) >> 11;
 		b = ((b0 + b1 * 2) *  351 +   61) >>  7;
-
-        if constexpr (BGRA) {
-            refColors[3] = 0xFF000000 | (r << 16) | (g << 8) | b;
-        }
-        else {
-            refColors[3] = 0xFF000000 | (b << 16) | (g << 8) | r;
-        }
+		refColors[3] = 0xFF000000 | (r << 16) | (g << 8) | b;
 	}
 	else
 	{   /* Quite rare BC1A mode */
@@ -103,11 +81,7 @@ static void bcdec__color_block(const u8* compressedBlock, u8* dstColors, int des
 		r = ((r0 + r1) * 1053 +  125) >>  8;
 		g = ((g0 + g1) * 4145 + 1019) >> 11;
 		b = ((b0 + b1) * 1053 +  125) >>  8;
-        if constexpr (BGRA) {
-            refColors[2] = 0xFF000000 | (r << 16) | (g << 8) | b;
-        } else{
-            refColors[2] = 0xFF000000 | (b << 16) | (g << 8) | r;
-        }
+		refColors[2] = 0xFF000000 | (r << 16) | (g << 8) | b;
 
 		refColors[3] = 0x00000000;
 	}
@@ -180,20 +154,17 @@ static void bcdec__smooth_alpha_block(const u8* compressedBlock, u8* decompresse
 	}
 }
 
-template <bool BGRA>
 static inline void bcdec_bc1(const u8* compressedBlock, u8* decompressedBlock, int destinationPitch) {
-	bcdec__color_block<BGRA>(compressedBlock, decompressedBlock, destinationPitch, false);
+	bcdec__color_block(compressedBlock, decompressedBlock, destinationPitch, false);
 }
 
-template <bool BGRA>
 static inline void bcdec_bc2(const u8* compressedBlock, u8* decompressedBlock, int destinationPitch) {
-	bcdec__color_block<BGRA>(compressedBlock + 8, decompressedBlock, destinationPitch, true);
+	bcdec__color_block(compressedBlock + 8, decompressedBlock, destinationPitch, true);
 	bcdec__sharp_alpha_block(reinterpret_cast<const u16*>(compressedBlock), decompressedBlock + 3, destinationPitch);
 }
 
-template <bool BGRA>
 static inline void bcdec_bc3(const u8* compressedBlock, u8* decompressedBlock, int destinationPitch) {
-	bcdec__color_block<BGRA>(compressedBlock + 8, decompressedBlock, destinationPitch, true);
+	bcdec__color_block(compressedBlock + 8, decompressedBlock, destinationPitch, true);
 	bcdec__smooth_alpha_block(compressedBlock, decompressedBlock + 3, destinationPitch);
 }
 

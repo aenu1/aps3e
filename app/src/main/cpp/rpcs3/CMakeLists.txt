@@ -62,7 +62,7 @@ option(HAS_MEMORY_BREAKPOINTS "Add support for memory breakpoints to the interpr
 option(USE_LTO "Use LTO for building" OFF)
 option(BUILD_RPCS3_TESTS "Build RPCS3 unit tests." OFF)
 option(RUN_RPCS3_TESTS "Run RPCS3 unit tests. Requires BUILD_RPCS3_TESTS" OFF)
-option(USE_GAMEMODE "Choose whether to enable GameMode features or not." OFF)
+option(USE_GAMEMODE "Choose whether to enable GameMode features or not." ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/buildfiles/cmake")
 
@@ -94,8 +94,8 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 if(APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
-    include_directories(/opt/homebrew/include)
-    link_directories(/opt/homebrew/lib)
+    list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/opt/homebrew")
 endif()
 
 if(MSVC)

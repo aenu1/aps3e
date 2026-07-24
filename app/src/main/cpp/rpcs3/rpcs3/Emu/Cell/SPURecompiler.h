@@ -3,24 +3,13 @@
 #include "Utilities/File.h"
 #include "Utilities/lockless.h"
 #include "Utilities/address_range.h"
+#include "util/bit_set.hpp"
 #include "SPUThread.h"
 #include "SPUAnalyser.h"
 #include <vector>
-#include <bitset>
 #include <memory>
 #include <string>
 #include <deque>
-
-// std::bitset
-template <typename CT, typename T>
-	requires requires(std::remove_cvref_t<CT>& x, T&& y) { x.count(); x.test(y); x.flip(y); }
-[[nodiscard]] constexpr bool at32(CT&& container, T&& index, std::source_location src_loc = std::source_location::current())
-{
-	const usz csv = container.size();
-	if (csv <= std::forward<T>(index)) [[unlikely]]
-		fmt::raw_range_error(src_loc, format_object_simplified(index), csv);
-	return container[std::forward<T>(index)];
-}
 
 // Helper class
 class spu_cache
@@ -76,6 +65,16 @@ struct spu_program
 
 	bool operator<(const spu_program& rhs) const noexcept;
 };
+
+#ifdef ARCH_ARM64
+struct spu_llvm_compile_context
+{
+	bool use_tbl2 = true;
+	std::string llvm_error;
+};
+
+void spu_llvm_set_compile_context(spu_llvm_compile_context* context) noexcept;
+#endif
 
 class spu_item
 {
@@ -358,22 +357,22 @@ public:
 			}
 		}
 
-		std::bitset<s_reg_max> loop_args;
-		std::bitset<s_reg_max> loop_dicts;
-		std::bitset<s_reg_max> loop_writes;
-		std::bitset<s_reg_max> loop_may_update;
-		std::bitset<s_reg_max> gpr_not_nans;
+		bit_set<s_reg_max> loop_args;
+		bit_set<s_reg_max> loop_dicts;
+		bit_set<s_reg_max> loop_writes;
+		bit_set<s_reg_max> loop_may_update;
+		bit_set<s_reg_max> gpr_not_nans;
 
 		struct origin_t
 		{
-			std::bitset<s_reg_max + 1> regs{};
+			bit_set<s_reg_max + 1> regs{};
 			u32 modified = 0;
 			spu_itype_t mod1_type = spu_itype::UNK;
 			spu_itype_t mod2_type = spu_itype::UNK;
 			spu_itype_t mod3_type = spu_itype::UNK;
 			u32 IMM = 0;
 
-private:
+		private:
 			// Internal, please access using fixed order
 			spu_itype_t access_type(u32 i) const
 			{
@@ -392,7 +391,7 @@ private:
 
 				return spu_itype::UNK;
 			}
-public:
+		public:
 
 			spu_itype_t reverse1_type()
 			{
@@ -434,7 +433,7 @@ public:
 					return true;
 				}
 
-				return regs.count() == 1 && ::at32(regs, reg_val);
+				return regs.count() == 1 && regs.test(reg_val);
 			}
 
 			bool is_loop_dictator(u32 reg_val, bool test_predictable = false, bool should_predictable = true) const
@@ -444,7 +443,7 @@ public:
 					return false;
 				}
 
-				if (regs.count() >= 1 && ::at32(regs, reg_val))
+				if (regs.count() >= 1 && regs.test(reg_val))
 				{
 					if (!test_predictable)
 					{
@@ -503,7 +502,7 @@ public:
 					return false;
 				}
 
-				if (regs.count() - (::at32(regs, reg_val) ? 1 : 0))
+				if (regs.count() - (regs.test(reg_val) ? 1 : 0))
 				{
 					return false;
 				}
@@ -540,13 +539,11 @@ public:
 					{
 					case spu_itype::XSBH:
 					{
-						const auto prev_type = modified == 1 ? mod1_type : mod2_type;
 						is_ok &= mod1_type == spu_itype::CEQB || mod1_type == spu_itype::CEQBI || mod1_type == spu_itype::CGTB || mod1_type == spu_itype::CGTBI || mod1_type == spu_itype::CLGTB || mod1_type == spu_itype::CLGTBI;
 						break;
 					}
 					case spu_itype::ANDI:
 					{
-						const auto prev_type = modified == 1 ? mod1_type : mod2_type;
 						is_ok &= mod1_type == spu_itype::CEQB || mod1_type == spu_itype::CEQBI || mod1_type == spu_itype::CGTB || mod1_type == spu_itype::CGTBI || mod1_type == spu_itype::CLGTB || mod1_type == spu_itype::CLGTBI;
 						is_ok &= (spu_opcode_t{imm}.si10 & 0xff) == 0xff;
 						break;
@@ -577,6 +574,10 @@ public:
 					{
 						is_ok = modified == 1 && (mod1_type == spu_itype::AI || mod1_type == spu_itype::AHI);
 						IMM = spu_opcode_t{imm}.si10;
+						break;
+					}
+					default:
+					{
 						break;
 					}
 					}
@@ -682,9 +683,13 @@ public:
 			return true;
 		}
 
-		bool is_gpr_not_NaN_hint(u32 i) const noexcept
+		bool is_gpr_not_NaN_hint([[maybe_unused]] u32 i) const noexcept
 		{
-			return ::at32(gpr_not_nans, i);
+#ifdef ARCH_X64
+			return gpr_not_nans.test(i);
+#else
+			return false;
+#endif
 		}
 
 		origin_t get_reg(u32 reg_val) noexcept
@@ -707,19 +712,19 @@ public:
 protected:
 	spu_runtime* m_spurt{};
 
-	u32 m_pos;
-	u32 m_size;
-	u64 m_hash_start;
+	u32 m_pos = 0;
+	u32 m_size = 0;
+	u64 m_hash_start = 0;
 
 	// Bit indicating start of the block
-	std::bitset<0x10000> m_block_info;
+	bit_set<SPU_LS_SIZE / 4> m_block_info;
 
 	// GPR modified by the instruction (-1 = not set)
-	std::array<u8, 0x10000> m_regmod;
+	std::array<u8, SPU_LS_SIZE / 4> m_regmod {};
 
-	std::bitset<0x10000> m_use_ra;
-	std::bitset<0x10000> m_use_rb;
-	std::bitset<0x10000> m_use_rc;
+	bit_set<SPU_LS_SIZE / 4> m_use_ra;
+	bit_set<SPU_LS_SIZE / 4> m_use_rb;
+	bit_set<SPU_LS_SIZE / 4> m_use_rc;
 
 	// List of possible targets for the instruction (entry shouldn't exist for simple instructions)
 	std::unordered_map<u32, std::vector<u32>, value_hash<u32, 2>> m_targets;
@@ -728,10 +733,10 @@ protected:
 	std::unordered_map<u32, std::vector<u32>, value_hash<u32, 2>> m_preds;
 
 	// List of function entry points and return points (set after BRSL, BRASL, BISL, BISLED)
-	std::bitset<0x10000> m_entry_info;
+	bit_set<SPU_LS_SIZE / 4> m_entry_info;
 
 	// Set after return points and disjoint chunks
-	std::bitset<0x10000> m_ret_info;
+	bit_set<SPU_LS_SIZE / 4> m_ret_info;
 
 	// Basic block information
 	struct block_info
@@ -749,28 +754,28 @@ protected:
 		term_type terminator;
 
 		// Bit mask of the registers modified in the block
-		std::bitset<s_reg_max> reg_mod{};
+		bit_set<s_reg_max> reg_mod{};
 
 		// Set if last modifying instruction produces xfloat
-		std::bitset<s_reg_max> reg_mod_xf{};
+		bit_set<s_reg_max> reg_mod_xf{};
 
 		// Set if the initial register value in this block may be xfloat
-		std::bitset<s_reg_max> reg_maybe_xf{};
+		bit_set<s_reg_max> reg_maybe_xf{};
 
 		// Set if register is used in floating pont instruction
-		std::bitset<s_reg_max> reg_maybe_float{};
+		bit_set<s_reg_max> reg_maybe_float{};
 
 		// Set if register is used as shuffle mask
-		std::bitset<s_reg_max> reg_maybe_shuffle_mask{};
+		bit_set<s_reg_max> reg_maybe_shuffle_mask{};
 
 		// Number of times registers are used (before modified)
 		std::array<u32, s_reg_max> reg_use{};
 
 		// Bit mask of the trivial (u32 x 4) constant value resulting in this block
-		std::bitset<s_reg_max> reg_const{};
+		bit_set<s_reg_max> reg_const{};
 
 		// Bit mask of register saved onto the stack before use
-		std::bitset<s_reg_max> reg_save_dom{};
+		bit_set<s_reg_max> reg_save_dom{};
 
 		// Address of the function
 		u32 func = 0x40000;
@@ -848,7 +853,7 @@ protected:
 
 private:
 	// For private use
-	std::bitset<0x10000> m_bits;
+	bit_set<0x10000> m_bits;
 
 	// For private use
 	std::vector<u32> workload;

@@ -40,7 +40,7 @@ static std::array<serial_ver_t, 34> s_serial_versions;
 		return ::s_serial_versions[identifier].current_version;\
 	}
 
-SERIALIZATION_VER(global_version, 0,                            20) // For stuff not listed here
+SERIALIZATION_VER(global_version, 0,                            22) // For stuff not listed here
 SERIALIZATION_VER(ppu, 1,                                       1, 2/*PPU sleep order*/, 3/*PPU FNID and module*/)
 SERIALIZATION_VER(spu, 2,                                       1)
 SERIALIZATION_VER(lv2_sync, 3,                                  1)
@@ -325,7 +325,7 @@ std::string get_savestate_file(std::string_view title_id, std::string_view boot_
 					{
 						if (std::all_of(entry.begin() + uc_pos + 1, entry.begin() + dot_idx, [](char c) { return c >= '0' && c <= '9'; }))
 						{
-							save_files.emplace(entry, dir_entry.size);	
+							save_files.emplace(entry, dir_entry.size);
 						}
 					}
 				}
@@ -530,7 +530,7 @@ void clean_savestates(std::string_view title_id, std::string_view boot_path, usz
 		if (to_remove.empty())
 		{
 			break;
-		}	
+		}
 
 		if (!fs::remove_file(to_remove))
 		{
@@ -606,7 +606,7 @@ namespace stx
 		if ((saved ^ tag) & data_mask)
 		{
 			ensure(!ar.is_writing());
-			fmt::throw_exception("serial_breathe_and_tag(%u): %s\nobject: '%s', next-object: '%s', expected/tag: 0x%x != 0x%x,", s_tls_call_count, ar, s_tls_object_name, name, tag, saved);
+			fmt::throw_exception("serial_breathe_and_tag(%u): %s\nobject: '%s', next-object: '%s', expected/tag: 0x%x != 0x%x\nLatest known RPCS3 build working for savestates: 0.0.41-19455", s_tls_call_count, ar, s_tls_object_name, name, tag, saved);
 		}
 
 		s_tls_object_name = name;

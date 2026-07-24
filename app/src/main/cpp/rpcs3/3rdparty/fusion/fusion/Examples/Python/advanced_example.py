@@ -1,7 +1,8 @@
+import sys
+
 import imufusion
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
 
 # Import sensor data
 data = np.genfromtxt("sensor_data.csv", delimiter=",", skip_header=1)
@@ -14,16 +15,22 @@ accelerometer = data[:, 4:7]
 magnetometer = data[:, 7:10]
 
 # Instantiate algorithms
-offset = imufusion.Offset(sample_rate)
+bias = imufusion.Bias()
+
+bias.set_settings(imufusion.BiasSettings(sample_rate=sample_rate))
+
 ahrs = imufusion.Ahrs()
 
-ahrs.settings = imufusion.Settings(
-    imufusion.CONVENTION_NWU,  # convention
-    0.5,  # gain
-    2000,  # gyroscope range
-    10,  # acceleration rejection
-    10,  # magnetic rejection
-    5 * sample_rate,  # recovery trigger period = 5 seconds
+ahrs.set_settings(
+    imufusion.AhrsSettings(
+        sample_rate=sample_rate,
+        convention=imufusion.CONVENTION_NWU,
+        gain=0.5,
+        gyroscope_range=2000,
+        acceleration_rejection=10,
+        magnetic_rejection=10,
+        recovery_trigger_period=5 * sample_rate,  # 5 seconds
+    )
 )
 
 # Process sensor data
@@ -34,13 +41,15 @@ internal_states = np.empty((len(timestamp), 6))
 flags = np.empty((len(timestamp), 4))
 
 for index in range(len(timestamp)):
-    gyroscope[index] = offset.update(gyroscope[index])
+    gyroscope[index] = bias.update(gyroscope[index])
 
-    ahrs.update(gyroscope[index], accelerometer[index], magnetometer[index], delta_time[index])
+    ahrs.set_sample_period(delta_time[index])
 
-    euler[index] = ahrs.quaternion.to_euler()
+    ahrs.update(gyroscope[index], accelerometer[index], magnetometer[index])
 
-    ahrs_internal_states = ahrs.internal_states
+    euler[index] = imufusion.quaternion_to_euler(ahrs.get_quaternion())
+
+    ahrs_internal_states = ahrs.get_internal_states()
     internal_states[index] = np.array(
         [
             ahrs_internal_states.acceleration_error,
@@ -52,10 +61,10 @@ for index in range(len(timestamp)):
         ]
     )
 
-    ahrs_flags = ahrs.flags
+    ahrs_flags = ahrs.get_flags()
     flags[index] = np.array(
         [
-            ahrs_flags.initialising,
+            ahrs_flags.startup,
             ahrs_flags.angular_rate_recovery,
             ahrs_flags.acceleration_recovery,
             ahrs_flags.magnetic_recovery,
@@ -83,8 +92,8 @@ axes[0].set_ylabel("Degrees")
 axes[0].grid()
 axes[0].legend()
 
-# Plot initialising flag
-plot_bool(axes[1], timestamp, flags[:, 0], "Initialising")
+# Plot startup flag
+plot_bool(axes[1], timestamp, flags[:, 0], "Startup")
 
 # Plot angular rate recovery flag
 plot_bool(axes[2], timestamp, flags[:, 1], "Angular rate recovery")

@@ -1384,11 +1384,7 @@ bool handle_access_violation(u32 addr, bool is_writing, bool is_exec, ucontext_t
 			return false;
 		}
 
-		if (a_size != 4)
-		{
-			// Might be unimplemented, such as writing MFC proxy EAL+EAH using 64-bit store
-			break;
-		}
+		bool handled = true;
 
 		switch (op)
 		{
@@ -1398,14 +1394,37 @@ bool handle_access_violation(u32 addr, bool is_writing, bool is_exec, ucontext_t
 		case X64OP_LOAD_TEST:
 		{
 			u32 value;
-			if (is_writing || !thread->read_reg(addr, value))
+			const u32 addr_aligned = addr & -4;
+
+			if (addr % 4 + a_size > 4)
+			{
+				handled = false;
+				break;
+			}
+
+			if (is_writing || !thread->read_reg(addr_aligned, value))
 			{
 				return false;
 			}
 
+			// Adjust value for 8-bit and 16-bit reads
+			value >>= ((4 - a_size) * 8) - ((addr % 4) * 8);
+			value &= a_size == 4 ? u32{umax} : ((1u << (a_size * 8)) - 1);
+
 			if (op != X64OP_LOAD_BE)
 			{
-				value = stx::se_storage<u32>::swap(value);
+				if (a_size == 4)
+				{
+					value = stx::se_storage<u32>::swap(value);
+				}
+				else if (a_size == 2)
+				{
+					value = stx::se_storage<u16>::swap(value);
+				}
+				else
+				{
+					ensure(a_size == 1);
+				}
 			}
 
 			if (op == X64OP_LOAD_CMP)
@@ -1440,12 +1459,35 @@ bool handle_access_violation(u32 addr, bool is_writing, bool is_exec, ucontext_t
 		case X64OP_BEXTR:
 		{
 			u32 value;
-			if (is_writing || !thread->read_reg(addr, value))
+			const u32 addr_aligned = addr & -4;
+
+			if (addr % 4 + a_size > 4)
+			{
+				handled = false;
+				break;
+			}
+
+			if (is_writing || !thread->read_reg(addr_aligned, value))
 			{
 				return false;
 			}
 
-			value = stx::se_storage<u32>::swap(value);
+			// Adjust value for 8-bit and 16-bit reads
+			value >>= ((4 - a_size) * 8) - ((addr % 4) * 8);
+			value &= a_size == 4 ? u32{umax} : ((1u << (a_size * 8)) - 1);
+
+			if (a_size == 4)
+			{
+				value = stx::se_storage<u32>::swap(value);
+			}
+			else if (a_size == 2)
+			{
+				value = stx::se_storage<u16>::swap(value);
+			}
+			else
+			{
+				ensure(a_size == 1);
+			}
 
 			u64 ctrl;
 			if (!get_x64_reg_value(context, s_tls_reg3, d_size, i_size, ctrl))
@@ -1471,6 +1513,13 @@ bool handle_access_violation(u32 addr, bool is_writing, bool is_exec, ucontext_t
 		case X64OP_STORE:
 		case X64OP_STORE_BE:
 		{
+			if (a_size != 4)
+			{
+				// Might be unimplemented, such as writing MFC proxy EAL+EAH using 64-bit store
+				handled = false;
+				break;
+			}
+
 			u64 reg_value;
 			if (!is_writing || !get_x64_reg_value(context, reg, d_size, i_size, reg_value))
 			{
@@ -1489,10 +1538,17 @@ bool handle_access_violation(u32 addr, bool is_writing, bool is_exec, ucontext_t
 		case X64OP_STOS:
 		default:
 		{
-			sig_log.error("Invalid or unsupported operation (op=%d, reg=%d, d_size=%lld, i_size=%lld)", +op, +reg, d_size, i_size);
+			sig_log.error("Invalid or unsupported operation (op=%d, addr=0x%x, reg=%d, d_size=%lld, i_size=%lld, a_size=%d)", +op, addr, +reg, d_size, i_size, a_size);
 			report_opcode();
 			return false;
 		}
+		}
+
+		if (!handled)
+		{
+			sig_log.error("Invalid or unsupported operation (op=%d, addr=0x%x, reg=%d, d_size=%lld, i_size=%lld, a_size=%d)", +op, addr, +reg, d_size, i_size, a_size);
+			report_opcode();
+			break;
 		}
 
 		// skip processed instruction
@@ -2135,6 +2191,37 @@ static void signal_handler(int /*sig*/, siginfo_t* info, void* uct) noexcept
 
 	append_thread_name(msg);
 
+#ifdef __APPLE__
+	thread_local bool s_tls_is_attempting_recovery = false;
+	thread_local bool s_tls_last_cause_is_executing = false;
+
+	if (reinterpret_cast<u64>(info->si_addr) < 0x10000)
+	{
+		// Do not recover from the virtual page of 0x0 (such as nullptr)
+	}
+	else if (is_executing || is_writing)
+	{
+		if (s_tls_is_attempting_recovery && s_tls_last_cause_is_executing != is_executing)
+		{
+			// Cause changed, inform recovery
+			s_tls_is_attempting_recovery = false;
+		}
+
+		if (!s_tls_is_attempting_recovery)
+		{
+			s_tls_last_cause_is_executing = is_executing;
+			s_tls_is_attempting_recovery = true;
+			pthread_jit_write_protect_np(is_executing ? true : false);
+
+			sys_log.error("\n%s", msg);
+			sys_log.notice("\n%s", dump_useful_thread_info());
+			sys_log.error("Attempting recovery using pthread_jit_write_protect_np()");
+			logs::listener::sync_all();
+			return;
+		}
+	}
+#endif
+
 	sys_log.fatal("\n%s", msg);
 	sys_log.notice("\n%s", dump_useful_thread_info());
 	logs::listener::sync_all();
@@ -2248,31 +2335,56 @@ void thread_base::start()
 	m_thread = ::_beginthreadex(nullptr, 0, entry_point, this, CREATE_SUSPENDED, nullptr);
 	ensure(m_thread);
 	ensure(::ResumeThread(reinterpret_cast<HANDLE>(+m_thread)) != static_cast<DWORD>(-1));
-#elif defined(__APPLE__)
+#elif defined(__APPLE__)||defined(__ANDROID__)
 	pthread_attr_t attrs;
+	pthread_t thread_id{};
 	struct sched_param sp;
     memset(&sp, 0, sizeof(struct sched_param));
     sp.sched_priority=99;
 	pthread_attr_init(&attrs);
 	pthread_attr_setstacksize(&attrs, 0x800000);
-
+#ifndef __ANDROID__
 	pthread_attr_set_qos_class_np(&attrs, QOS_CLASS_USER_INTERACTIVE, 0);
 	pthread_attr_setschedpolicy(&attrs, SCHED_RR);
 	pthread_attr_setschedparam(&attrs, &sp);
-	ensure(pthread_create(reinterpret_cast<pthread_t*>(&m_thread.raw()), &attrs, entry_point, this) == 0);
+#endif
+	ensure(pthread_create(&thread_id, &attrs, entry_point, this) == 0);
 #else
-	ensure(pthread_create(reinterpret_cast<pthread_t*>(&m_thread.raw()), nullptr, entry_point, this) == 0);
+	pthread_t thread_id{};
+	ensure(pthread_create(&thread_id, nullptr, entry_point, this) == 0);
+#endif
+
+#ifndef _WIN32
+	// Update m_thread atomically
+	u64 dest_id = 0;
+	std::memcpy(&dest_id, &thread_id, sizeof(thread_id));
+
+	if (!m_thread && !m_thread.compare_and_swap_test(0, dest_id))
+	{
+		ensure(m_thread == dest_id);
+	}
 #endif
 }
 
 void thread_base::initialize(void (*error_cb)())
 {
 #ifndef _WIN32
-#ifdef ANDROID
-	m_thread.release(pthread_self());
+#ifdef __APPLE__
+	while (!m_thread)
+	{
+		busy_wait();
+	}
+	[[maybe_unused]] u64 new_tid = 0;
+#elif defined(ANDROID)
+	const u64 new_tid = pthread_self();
 #else
-	m_thread.release(reinterpret_cast<u64>(pthread_self()));
+	const u64 new_tid = reinterpret_cast<u64>(pthread_self());
 #endif
+
+	if (!m_thread && !m_thread.compare_and_swap_test(0, new_tid))
+	{
+		ensure(m_thread == new_tid);
+	}
 #endif
 
 	// Initialize TLS variables
@@ -2883,6 +2995,13 @@ void thread_base::exec()
 	}
 }
 
+void thread_ctrl::set_name(std::string name)
+{
+	ensure(g_tls_this_thread);
+	g_tls_this_thread->m_tname.store(make_single<std::string>(name));
+	g_tls_this_thread->set_name(std::move(name));
+}
+
 [[noreturn]] void thread_ctrl::emergency_exit(std::string_view reason)
 {
 	// Print stacktrace
@@ -2953,7 +3072,9 @@ void thread_base::exec()
 			return false;
 		}).second)
 		{
+#ifndef __APPLE__
 			utils::trap();
+#endif
 		}
 	}
 
@@ -2979,6 +3100,32 @@ void thread_base::exec()
 	}
 
 	report_fatal_error(reason);
+}
+
+void thread_ctrl::silent_exit() noexcept
+{
+	if (const auto _this = g_tls_this_thread)
+	{
+		g_tls_error_callback();
+
+		u64 _self = _this->finalize(thread_state::errored);
+
+		if (_self == umax)
+		{
+			// Unused, detached thread support remnant
+			delete _this;
+		}
+
+		thread_base::finalize(umax);
+	}
+
+#ifdef _WIN32
+	_endthreadex(0);
+#else
+	pthread_exit(nullptr);
+#endif
+
+	std::abort();
 }
 
 void thread_ctrl::detect_cpu_layout()
@@ -3340,7 +3487,7 @@ void thread_ctrl::set_thread_affinity_mask(u64 mask)
 	thread_affinity_policy_data_t policy = { static_cast<integer_t>(std::countr_zero(mask)) };
 	thread_port_t mach_thread = pthread_mach_thread_np(pthread_self());
 	thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, reinterpret_cast<thread_policy_t>(&policy), !mask ? 0 : 1);
-#elif !defined(ANDROID) && (defined(__linux__) || defined(__DragonFly__) || defined(__FreeBSD__))
+#elif defined(__linux__) || defined(__DragonFly__) || defined(__FreeBSD__)
 	if (!mask)
 	{
 		// Reset affinity mask
@@ -3367,8 +3514,11 @@ void thread_ctrl::set_thread_affinity_mask(u64 mask)
 			break;
 		}
 	}
-
-	if (int err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cs))
+#if defined(__ANDROID__)
+    if (int err = sched_setaffinity(0, sizeof(cpu_set_t), &cs))
+#else
+    if (int err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cs))
+#endif
 	{
 		sig_log.error("Failed to set thread affinity 0x%x: error %d.", mask, err);
 	}
@@ -3392,11 +3542,15 @@ u64 thread_ctrl::get_thread_affinity_mask()
 
 	sig_log.error("Failed to get thread affinity mask.");
 	return 0;
-#elif !defined(ANDROID) && (defined(__linux__) || defined(__DragonFly__) || defined(__FreeBSD__))
+#elif defined(__linux__) || defined(__DragonFly__) || defined(__FreeBSD__)
 	cpu_set_t cs;
 	CPU_ZERO(&cs);
 
-	if (int err = pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cs))
+#if defined(__ANDROID__)
+    if (int err = sched_getaffinity(0, sizeof(cpu_set_t), &cs))
+#else
+        if (int err = pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cs))
+#endif
 	{
 		sig_log.error("Failed to get thread affinity mask: error %d.", err);
 		return 0;
@@ -3457,15 +3611,26 @@ std::pair<void*, usz> thread_ctrl::get_thread_stack()
 
 u64 thread_ctrl::get_tid()
 {
-#ifdef _WIN32
-	return GetCurrentThreadId();
-#elif defined(ANDROID)
-	return static_cast<u64>(pthread_self());
-#elif defined(__linux__)
-	return syscall(SYS_gettid);
-#else
-	return reinterpret_cast<u64>(pthread_self());
-#endif
+	static thread_local u64 s_tls_tid = []() -> u64
+	{
+	#ifdef _WIN32
+		return GetCurrentThreadId();
+	#elif defined(ANDROID)
+		return pthread_gettid_np(pthread_self());
+	#elif defined(__linux__)
+		return syscall(SYS_gettid);
+	#elif defined(__APPLE__)
+		u64 tid{};
+		pthread_threadid_np(nullptr, &tid);
+		return tid;
+	#elif defined(__FreeBSD__)
+		return pthread_getthreadid_np();
+	#else
+		return static_cast<u64>(pthread_self());
+	#endif
+	}();
+
+	return s_tls_tid;
 }
 
 bool thread_ctrl::is_main()

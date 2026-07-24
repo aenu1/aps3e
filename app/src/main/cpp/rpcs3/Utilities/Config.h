@@ -25,7 +25,7 @@ namespace cfg
 	std::vector<std::string> make_float_range(f64 min, f64 max);
 
 	// Internal hack
-	bool try_to_enum_value(u64* out, decltype(&fmt_class_string<int>::format) func, std::string_view);
+	bool try_to_enum_value(u64* out, decltype(&fmt_class_string<int>::format) func, std::string_view value, std::string_view name = {});
 
 	// Internal hack
 	std::vector<std::string> try_to_enum_list(decltype(&fmt_class_string<int>::format) func);
@@ -119,7 +119,7 @@ namespace cfg
 		}
 
 		// Try to convert from string (optional)
-		virtual bool from_string(std::string_view, bool /*dynamic*/ = false);
+		virtual bool from_string(std::string_view value, bool dynamic = false);
 
 		// Get string list (optional)
 		virtual std::vector<std::string> to_list() const
@@ -170,6 +170,9 @@ namespace cfg
 
 		// Restore default members
 		void restore_defaults() override;
+
+		// Try to convert from string and validate
+		bool validate(std::string_view value);
 	};
 
 	class _bool final : public _base
@@ -310,7 +313,7 @@ namespace cfg
 		{
 			u64 result;
 
-			if (try_to_enum_value(&result, &fmt_class_string<T>::format, value))
+			if (try_to_enum_value(&result, &fmt_class_string<T>::format, value, m_name))
 			{
 				// No narrowing check, it's hard to do right there
 				m_value = static_cast<T>(static_cast<std::underlying_type_t<T>>(result));
@@ -399,7 +402,7 @@ namespace cfg
 		bool from_string(std::string_view value, bool /*dynamic*/ = false) override
 		{
 			s64 result;
-			if (try_to_int64(&result, value, Min, Max))
+			if (try_to_int64(&result, value, Min, Max, m_name))
 			{
 				m_value = static_cast<int_type>(result);
 				return true;
@@ -477,7 +480,7 @@ namespace cfg
 		std::string to_string() const override
 		{
 			std::string result;
-			if (try_to_string(&result, m_value))
+			if (try_to_string(&result, m_value, m_name))
 			{
 				return result;
 			}
@@ -488,7 +491,7 @@ namespace cfg
 		std::string def_to_string() const override
 		{
 			std::string result;
-			if (try_to_string(&result, def))
+			if (try_to_string(&result, def, m_name))
 			{
 				return result;
 			}
@@ -499,7 +502,7 @@ namespace cfg
 		bool from_string(std::string_view value, bool /*dynamic*/ = false) override
 		{
 			f64 result;
-			if (try_to_float(&result, value, Min, Max))
+			if (try_to_float(&result, value, Min, Max, m_name))
 			{
 				m_value = static_cast<float_type>(result);
 				return true;
@@ -571,7 +574,7 @@ namespace cfg
         {
             return static_cast<int64_t>(max);
         }
-        
+
 		void from_default() override
 		{
 			m_value = def;
@@ -595,7 +598,7 @@ namespace cfg
 		bool from_string(std::string_view value, bool /*dynamic*/ = false) override
 		{
 			u64 result;
-			if (try_to_uint64(&result, value, Min, Max))
+			if (try_to_uint64(&result, value, Min, Max, m_name))
 			{
 				m_value = static_cast<int_type>(result);
 				return true;
@@ -681,7 +684,7 @@ namespace cfg
 		bool from_string(std::string_view value, bool /*dynamic*/ = false) override
 		{
 			u128 result;
-			if (try_to_uint128(&result, value))
+			if (try_to_uint128(&result, value, m_name))
 			{
 				m_value = result;
 				return true;
@@ -748,6 +751,11 @@ namespace cfg
 		{
 			m_value = std::string(value);
 			return true;
+		}
+
+		void set(std::string_view value)
+		{
+			m_value = std::string(value);
 		}
 	};
 

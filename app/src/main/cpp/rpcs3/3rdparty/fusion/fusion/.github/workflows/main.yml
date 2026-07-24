@@ -14,10 +14,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:  [ macos-latest, ubuntu-latest, windows-latest ]
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build CMake targets
         run: |
@@ -39,10 +39,10 @@ jobs:
           - [ ubuntu-latest, manylinux_x86_64 ]
           - [ windows-latest, win_amd64 ]
 
-        python-version: [ "cp38-", "cp39-", "cp310-", "cp311-", "cp312-", "cp313-", "cp314-" ]
+        python-version: [ "cp39-", "cp310-", "cp311-", "cp312-", "cp313-", "cp314-" ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Python dependencies
         run: |
@@ -50,21 +50,35 @@ jobs:
 
       - if: matrix.target[0] == 'ubuntu-latest'
         name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: all
 
       - name: Build wheel
-        uses: pypa/cibuildwheel@v3.2.1
+        uses: pypa/cibuildwheel@v3.4.1
         env:
           CIBW_ARCHS: all
           CIBW_BUILD: ${{ matrix.python-version }}${{ matrix.target[1] }}
-          CIBW_BEFORE_TEST: pip install matplotlib
-          CIBW_TEST_COMMAND: cd {project}/Examples/Python && python advanced_example.py dont_block && python simple_example.py dont_block
-          CIBW_TEST_COMMAND_WINDOWS: cd /D {project}/Examples/Python && python advanced_example.py dont_block && python simple_example.py dont_block
+          CIBW_BEFORE_TEST: pip install matplotlib scipy
+          CIBW_TEST_COMMAND: >-
+            cd {project}/Examples/Python &&
+            python advanced_example.py dont_block &&
+            python compass_vs_ahrs.py dont_block &&
+            python simple_example.py dont_block &&
+            python test_convert.py
+            python test_model.py
+            python test_remap.py
+          CIBW_TEST_COMMAND_WINDOWS: >-
+            cd /D {project}/Examples/Python &&
+            python advanced_example.py dont_block &&
+            python compass_vs_ahrs.py dont_block &&
+            python simple_example.py dont_block &&
+            python test_convert.py
+            python test_model.py
+            python test_remap.py
           CIBW_TEST_SKIP: "*-macosx_arm64" # fix CI warning
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.python-version }}${{ matrix.target[1] }}
           path: wheelhouse/*
@@ -73,9 +87,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -87,7 +101,7 @@ jobs:
       - name: Build sdist
         run: python setup.py sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*
@@ -98,7 +112,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -106,8 +120,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install twine==6.0.1
-        # use twine v6.0.1 because bug in latest version (v6.1.0)    
+          python -m pip install twine
+          python -m pip install -U packaging
+        # https://github.com/pypa/twine/issues/1216#issuecomment-2606531615
 
       - name: Publish package
         env:

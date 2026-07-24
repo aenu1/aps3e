@@ -515,7 +515,7 @@ struct copy_decoded_bc1_block
 			{
 				const u8* compressedBlock = reinterpret_cast<const u8*>(&src[src_offset + col]);
 				u8* decompressedBlock = reinterpret_cast<u8*>(&dst[dst_offset + col * 4]);
-				bcdec_bc1<true>(compressedBlock, decompressedBlock, destinationPitch);
+				bcdec_bc1(compressedBlock, decompressedBlock, destinationPitch);
 			}
 
 			src_offset += src_pitch_in_block;
@@ -535,7 +535,7 @@ struct copy_decoded_bc2_block
 			{
 				const u8* compressedBlock = src[src_offset + col]._u8;
 				u8* decompressedBlock = reinterpret_cast<u8*>(&dst[dst_offset + col * 4]);
-				bcdec_bc2<true>(compressedBlock, decompressedBlock, destinationPitch);
+				bcdec_bc2(compressedBlock, decompressedBlock, destinationPitch);
 			}
 
 			src_offset += src_pitch_in_block;
@@ -555,7 +555,7 @@ struct copy_decoded_bc3_block
 			{
 				const u8* compressedBlock = src[src_offset + col]._u8;
 				u8* decompressedBlock = reinterpret_cast<u8*>(&dst[dst_offset + col * 4]);
-				bcdec_bc3<true>(compressedBlock, decompressedBlock, destinationPitch);
+				bcdec_bc3(compressedBlock, decompressedBlock, destinationPitch);
 			}
 
 			src_offset += src_pitch_in_block;

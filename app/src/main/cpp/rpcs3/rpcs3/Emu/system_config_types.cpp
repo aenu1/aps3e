@@ -88,6 +88,22 @@ void fmt_class_string<msaa_level>::format(std::string& out, u64 arg)
 }
 
 template <>
+void fmt_class_string<framebuffer_aliasing_bias>::format(std::string& out, u64 arg)
+{
+	format_enum(out, arg, [](framebuffer_aliasing_bias value)
+	{
+		switch (value)
+		{
+		case framebuffer_aliasing_bias::_auto: return "Auto";
+		case framebuffer_aliasing_bias::prefer_color: return "Prefer Color";
+		case framebuffer_aliasing_bias::prefer_depth: return "Prefer Depth";
+		}
+
+		return unknown;
+	});
+}
+
+template <>
 void fmt_class_string<keyboard_handler>::format(std::string& out, u64 arg)
 {
 	format_enum(out, arg, [](keyboard_handler value)
@@ -610,8 +626,8 @@ void fmt_class_string<thread_scheduler_mode>::format(std::string& out, u64 arg)
             case thread_scheduler_mode::os: return "Operating System";
         }
 
-        return unknown;
-    });
+		return unknown;
+	});
 }
 
 template <>
@@ -664,6 +680,7 @@ void fmt_class_string<stereo_render_mode_options>::format(std::string& out, u64 
 			case stereo_render_mode_options::anaglyph_magenta_cyan: return "Anaglyph Magenta-Cyan";
 			case stereo_render_mode_options::anaglyph_trioscopic: return "Anaglyph Trioscopic";
 			case stereo_render_mode_options::anaglyph_amber_blue: return "Anaglyph Amber-Blue";
+			case stereo_render_mode_options::anaglyph_custom: return "Anaglyph Custom";
 			}
 
 			return unknown;

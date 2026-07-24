@@ -4,7 +4,6 @@
 #include "Emu/Cell/lv2/sys_usbd.h"
 #include "Emu/Io/usb_device.h"
 #include "Utilities/StrUtil.h"
-#include <libusb.h>
 
 LOG_CHANNEL(sys_usbd);
 
@@ -22,6 +21,22 @@ usb_device::usb_device(const std::array<u8, 7>& location)
 void usb_device::get_location(u8* location) const
 {
 	memcpy(location, this->location.data(), 7);
+}
+
+const UsbDeviceEndpoint* usb_device::find_endpoint(u8 endpoint_addr) const
+{
+	for (const auto& config_node : device.subnodes)
+	{
+		if (config_node.bDescriptorType != USB_DESCRIPTOR_CONFIG)
+			continue;
+
+		for (const auto& node : config_node.subnodes)
+		{
+			if (node.bDescriptorType == USB_DESCRIPTOR_ENDPOINT && node._endpoint.bEndpointAddress == endpoint_addr)
+				return &node._endpoint;
+		}
+	}
+	return nullptr;
 }
 
 void usb_device::read_descriptors()
@@ -60,6 +75,42 @@ usb_device_passthrough::usb_device_passthrough(libusb_device* _device, libusb_de
 {
 	device = UsbDescriptorNode(USB_DESCRIPTOR_DEVICE, UsbDeviceDescriptor{desc.bcdUSB, desc.bDeviceClass, desc.bDeviceSubClass, desc.bDeviceProtocol, desc.bMaxPacketSize0, desc.idVendor, desc.idProduct,
 														  desc.bcdDevice, desc.iManufacturer, desc.iProduct, desc.iSerialNumber, desc.bNumConfigurations});
+	patch_descriptors();
+}
+
+void usb_device_passthrough::patch_descriptors()
+{
+	// Patch Wii vids and pids so they are presented to the console as PS3 instruments
+	if (device._device.idVendor == 0x1BAD) // Harmonix
+	{
+		switch (device._device.idProduct)
+		{
+			case 0x0004: // Harmonix RB1 Guitar - Wii
+			case 0x3010: // Harmonix RB2 Guitar - Wii
+				device._device.idVendor = 0x12BA; // SCEA
+				device._device.idProduct = 0x0200; // Harmonix Guitar
+				break;
+			case 0x0005: // Harmonix RB1 Drums - Wii
+			case 0x3110: // Harmonix RB2 Drums - Wii
+				device._device.idVendor = 0x12BA; // SCEA
+				device._device.idProduct = 0x0210; // Harmonix Drums
+				break;
+			case 0x3330: // Harmonix Keyboard - Wii
+				device._device.idVendor = 0x12BA; // SCEA
+				device._device.idProduct = 0x2330; // Harmonix Keyboard
+				break;
+			case 0x3430: // Harmonix Button Guitar - Wii
+				device._device.idVendor = 0x12BA; // SCEA
+				device._device.idProduct = 0x2430; // Harmonix Button Guitar
+				break;
+			case 0x3530: // Harmonix Real Guitar - Wii
+				device._device.idVendor = 0x12BA; // SCEA
+				device._device.idProduct = 0x2530; // Harmonix Real Guitar
+				break;
+			default:
+				break;
+		}
+	}
 }
 
 usb_device_passthrough::~usb_device_passthrough()
@@ -88,6 +139,15 @@ void usb_device_passthrough::send_libusb_transfer(libusb_transfer* transfer)
 		default:
 		{
 			sys_usbd.error("Unexpected error from libusb_submit_transfer: %d(%s)", res, libusb_error_name(res));
+
+			// Mark as a failed fake transfer so the USB manager processes a completion
+			// instead of leaving the request stuck in the busy state forever.
+			UsbTransfer* usbd_transfer = static_cast<UsbTransfer*>(transfer->user_data);
+			usbd_transfer->busy = true;
+			usbd_transfer->fake = true;
+			usbd_transfer->expected_result = EHCI_CC_HALTED;
+			usbd_transfer->expected_count = 0;
+			usbd_transfer->expected_time = get_timestamp();
 			return;
 		}
 		}
@@ -129,6 +189,7 @@ void usb_device_passthrough::read_descriptors()
 			index += buf[index];
 		}
 	}
+	patch_descriptors();
 }
 
 u32 usb_device_passthrough::get_configuration(u8* buf)
@@ -163,7 +224,23 @@ void usb_device_passthrough::control_transfer(u8 bmRequestType, u8 bRequest, u16
 
 void usb_device_passthrough::interrupt_transfer(u32 buf_size, u8* buf, u32 endpoint, UsbTransfer* transfer)
 {
-	libusb_fill_interrupt_transfer(transfer->transfer, lusb_handle, endpoint, buf, buf_size, callback_transfer, transfer, 0);
+	// Pick the libusb helper matching the endpoint's actual transfer type. The PS3 USB
+	// stack routes both bulk and interrupt transfers through this method, but submitting
+	// an interrupt URB to a bulk endpoint fails with EINVAL on Linux.
+	const UsbDeviceEndpoint* ep_desc = find_endpoint(static_cast<u8>(endpoint));
+	const bool is_bulk = ep_desc && (ep_desc->bmAttributes & LIBUSB_TRANSFER_TYPE_MASK) == LIBUSB_TRANSFER_TYPE_BULK;
+
+	sys_usbd.trace("USIO debug: submitting passthrough transfer endpoint=0x%x dir=%s size=0x%x type=%s",
+		endpoint, (endpoint & LIBUSB_ENDPOINT_IN) ? "IN" : "OUT", buf_size, is_bulk ? "bulk" : "interrupt");
+
+	if (is_bulk)
+	{
+		libusb_fill_bulk_transfer(transfer->transfer, lusb_handle, endpoint, buf, buf_size, callback_transfer, transfer, 0);
+	}
+	else
+	{
+		libusb_fill_interrupt_transfer(transfer->transfer, lusb_handle, endpoint, buf, buf_size, callback_transfer, transfer, 0);
+	}
 	send_libusb_transfer(transfer->transfer);
 }
 

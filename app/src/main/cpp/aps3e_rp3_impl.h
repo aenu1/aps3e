@@ -140,7 +140,7 @@
 #include "meminfo.h"
 
 #define LOG_TAG "aps3e_native"
-#if 1
+#if 0
 
 #define LOGI(...) {}
 #define LOGW(...) {}
@@ -250,7 +250,7 @@ public:
     static QStringList GetKeyNames(const QKeyEvent* keyEvent);
     static std::string GetKeyName(const QKeyEvent* keyEvent, bool with_modifiers);
     static std::string GetKeyName(const u32& keyCode);*/
-    static std::vector<std::set<u32>> GetKeyCombos(const cfg::string& cfg_string);
+    static std::vector<std::set<u32>> GetKeyCombos(std::string_view cfg_string);
     //static u32 GetKeyCode(const QString& keyName);
 
     static int native_scan_code_from_string(const std::string& key);
@@ -351,21 +351,6 @@ public:
 
     void take_screenshot(std::vector<u8>&& sshot_data, u32 sshot_width, u32 sshot_height, bool is_bgra) {PR;}
     //void take_screenshot(const std::vector<u8> sshot_data, u32 sshot_width, u32 sshot_height, bool is_bgra){PR;}
-};
-
-class android_music_handler:public music_handler_base
-{
-public:
-    android_music_handler(){PR;}
-    ~android_music_handler(){PR;}
-
-    void stop(){PR;m_state = CELL_MUSIC_PB_STATUS_STOP;}
-    void pause(){PR;m_state = CELL_MUSIC_PB_STATUS_PAUSE;}
-    void play(const std::string& path){PR;m_state = CELL_MUSIC_PB_STATUS_PLAY;}
-    void fast_forward(const std::string& path){PR;m_state = CELL_MUSIC_PB_STATUS_FASTFORWARD;}
-    void fast_reverse(const std::string& path){PR;m_state = CELL_MUSIC_PB_STATUS_FASTREVERSE;}
-    void set_volume(f32 volume){PR;}
-    f32 get_volume() const{PR;return 0;}
 };
 
 class android_save_dialog:public SaveDialogBase{

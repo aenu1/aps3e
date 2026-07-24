@@ -11,9 +11,13 @@
 #include "pad_settings_dialog.h"
 #include "patch_manager_dialog.h"
 #include "persistent_settings.h"
+#include "config_database.h"
+#include "config_checker.h"
 
 #include "Utilities/File.h"
 #include "Emu/system_utils.hpp"
+#include "Loader/ISO.h"
+#include "Loader/content_validation.h"
 
 #include "QApplication"
 #include "QClipboard"
@@ -67,8 +71,8 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 	// Make Actions
 	QAction* boot = new QAction(gameinfo->has_custom_config
 		? (is_current_running_game
-			? tr("&Reboot with Global Configuration")
-			: tr("&Boot with Global Configuration"))
+			? (gameinfo->has_database_config ? tr("&Reboot with Database + Global Configuration") : tr("&Reboot with Global Configuration"))
+			: (gameinfo->has_database_config ? tr("&Boot with Database + Global Configuration") : tr("&Boot with Global Configuration")))
 		: (is_current_running_game
 			? tr("&Reboot")
 			: tr("&Boot")));
@@ -156,6 +160,8 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 
 	addSeparator();
 
+	QAction* create_game_database_config = (gameinfo->has_custom_config || !gameinfo->has_database_config) ? nullptr
+		: addAction(tr("&Create Custom Configuration From Database Settings"));
 	QAction* configure = addAction(gameinfo->has_custom_config
 		? tr("&Change Custom Configuration")
 		: tr("&Create Custom Configuration From Global Settings"));
@@ -164,6 +170,26 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 	QAction* pad_configure = addAction(gameinfo->has_custom_pad_config
 		? tr("&Change Custom Gamepad Configuration")
 		: tr("&Create Custom Gamepad Configuration"));
+
+	QAction* compare_config = addAction(tr("&Compare Configurations"));
+	connect(compare_config, &QAction::triggered, this, [this, serial]()
+	{
+		std::string db_config;
+		if (config_database* db = m_game_list_frame->GetConfigDatabase(); db->has_config(serial))
+		{
+			if (const std::optional<std::string> config = db->get_config(serial))
+			{
+				db_config = *config;
+			}
+			else
+			{
+				game_list_log.error("No database config found for '%s'", serial);
+			}
+		}
+		config_checker* dlg = new config_checker(m_game_list_frame, QString::fromStdString(serial), config_checker::checker_mode::gamelist, db_config);
+		dlg->open();
+	});
+
 	QAction* configure_patches = addAction(tr("&Manage Game Patches"));
 
 	addSeparator();
@@ -313,7 +339,7 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 	manage_game_menu->addSeparator();
 
 	// Remove game
-	QAction* remove_game = manage_game_menu->addAction(tr("&Remove %1").arg(gameinfo->localized_category));
+	QAction* remove_game = manage_game_menu->addAction(tr("&Remove %0").arg(gameinfo->localized_category));
 	remove_game->setEnabled(!is_current_running_game);
 
 	// Custom Images menu
@@ -576,9 +602,36 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 
 	addSeparator();
 
-	QAction* check_compat = addAction(tr("&Check Game Compatibility"));
-	QAction* download_compat = addAction(tr("&Download Compatibility Database"));
+	// Check disc game integrity
+	if (QString::fromStdString(current_game.category) == cat::cat_disc_game)
+	{
+		const bool raw_archive = is_iso_file(current_game.path);
+		const iso_type_status iso_type = iso_file_decryption::check_type(current_game.path);
 
+		// If it's an ISO file (e.g. even a decrypted ISO), always provide the entry on the context menu but disable
+		// it if the ISO does not support integrity check (e.g. non Redump ISO) or no integrity DB is found.
+		// That is to highlight a Redump ISO from a non Redump ISO
+		if (raw_archive || iso_type != iso_type_status::NOT_ISO)
+		{
+			QAction* check_iso_integrity = addAction(tr("&Check ISO Integrity"));
+
+			// If it's a Redump ISO and the integrity DB exists
+			if ((raw_archive || iso_type == iso_type_status::REDUMP_ISO) &&
+				content_validation::check_integrity(content_file_type::ISO, "") != content_integrity_status::ERROR_OPENING_DB)
+			{
+				connect(check_iso_integrity, &QAction::triggered, this, [this, gameinfo]()
+				{
+					m_game_list_actions->ShowGameIntegrityDialog(content_file_type::ISO, gameinfo->info.path);
+				});
+			}
+			else
+			{
+				check_iso_integrity->setEnabled(false);
+			}
+		}
+	}
+
+	QAction* check_compat = addAction(tr("&Check Game Compatibility"));
 	addSeparator();
 
 	// Disk usage
@@ -598,12 +651,13 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 	connect(boot, &QAction::triggered, m_game_list_frame, [this, gameinfo]()
 	{
 		sys_log.notice("Booting from gamelist per context menu...");
-		Q_EMIT m_game_list_frame->RequestBoot(gameinfo, cfg_mode::global);
+		Q_EMIT m_game_list_frame->RequestBoot(gameinfo, cfg_mode::database_config);
 	});
 
-	auto configure_l = [this, current_game, gameinfo](bool create_cfg_from_global_cfg)
+	const auto configure_game = [this, current_game, gameinfo](bool create_cfg_from_global_cfg, bool create_cfg_from_database)
 	{
-		settings_dialog dlg(m_gui_settings, m_emu_settings, 0, m_game_list_frame, &current_game, create_cfg_from_global_cfg);
+		const std::optional<std::string> db_config = create_cfg_from_database ? m_game_list_frame->GetConfigDatabase()->get_config(gameinfo->info.serial) : "";
+		settings_dialog dlg(m_gui_settings, m_emu_settings, 0, m_game_list_frame, &current_game, create_cfg_from_global_cfg, db_config ? *db_config : "");
 
 		connect(&dlg, &settings_dialog::EmuSettingsApplied, [this, gameinfo]()
 		{
@@ -618,14 +672,16 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 		dlg.exec();
 	};
 
+	connect(configure, &QAction::triggered, this, [configure_game]() { configure_game(true, false); });
+
 	if (create_game_default_config)
 	{
-		connect(configure, &QAction::triggered, m_game_list_frame, [configure_l]() { configure_l(true); });
-		connect(create_game_default_config, &QAction::triggered, m_game_list_frame, [configure_l = std::move(configure_l)]() { configure_l(false); });
+		connect(create_game_default_config, &QAction::triggered, m_game_list_frame, [configure_game]() { configure_game(false, false); });
 	}
-	else
+
+	if (create_game_database_config)
 	{
-		connect(configure, &QAction::triggered, m_game_list_frame, [configure_l = std::move(configure_l)]() { configure_l(true); });
+		connect(create_game_database_config, &QAction::triggered, m_game_list_frame, [configure_game]() { configure_game(false, true); });
 	}
 
 	connect(pad_configure, &QAction::triggered, m_game_list_frame, [this, current_game, gameinfo]()
@@ -668,10 +724,6 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 	{
 		const QString link = "https://rpcs3.net/compatibility?g=" + serial;
 		QDesktopServices::openUrl(QUrl(link));
-	});
-	connect(download_compat, &QAction::triggered, m_game_list_frame, [this]
-	{
-		ensure(m_game_list_frame->GetGameCompatibility())->RequestCompatibility(true);
 	});
 	connect(rename_title, &QAction::triggered, m_game_list_frame, [this, name, serial = QString::fromStdString(serial), global_pos]
 	{
@@ -928,14 +980,6 @@ void game_list_context_menu::show_multi_selection_context_menu(const std::vector
 	connect(remove_game, &QAction::triggered, this, [this, games]()
 	{
 		m_game_list_actions->ShowRemoveGameDialog(games);
-	});
-
-	addSeparator();
-
-	QAction* download_compat = addAction(tr("&Download Compatibility Database"));
-	connect(download_compat, &QAction::triggered, m_game_list_frame, [this]
-	{
-		ensure(m_game_list_frame->GetGameCompatibility())->RequestCompatibility(true);
 	});
 
 	addSeparator();

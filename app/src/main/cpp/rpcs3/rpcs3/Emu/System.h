@@ -58,6 +58,7 @@ enum class game_boot_result : u32
 	still_running,
 	already_added,
 	currently_restricted,
+	database_config_missing,
 };
 
 constexpr bool is_error(game_boot_result res)
@@ -116,6 +117,7 @@ struct EmuCallbacks
 	std::function<void()> check_microphone_permissions;
 	std::function<std::unique_ptr<class video_source>()> make_video_source;
 	std::function<void(bool)> enable_gamemode;
+	std::function<std::string(const std::string&)> get_database_config;
 };
 
 namespace utils
@@ -142,11 +144,13 @@ class Emulator final
 
 	games_config m_games_config;
 
+	std::set<video_renderer> m_supported_renderers;
 	video_renderer m_default_renderer;
 	std::string m_default_graphics_adapter;
 
 	cfg_mode m_config_mode = cfg_mode::custom;
 	std::string m_config_path;
+	std::optional<std::string> m_db_config; // std::nullopt means it has not been retrieved yet
 	std::string m_path;
     int m_iso_fd=-1;
     int m_iso_dec_key_fd=-1;
@@ -173,6 +177,8 @@ class Emulator final
 
 	bool m_continuous_mode = false;
 	bool m_has_gui = true;
+	bool m_headless = false;
+	bool m_add_database_config = false;
 
 	bool m_state_inspection_savestate = false;
 
@@ -214,6 +220,8 @@ public:
 	{
 		m_cb = std::move(cb);
 	}
+
+	void SetGameDir(const std::string& game_dir) { m_game_dir = game_dir; }
 
 	const auto& GetCallbacks() const
 	{
@@ -370,6 +378,12 @@ public:
 		return m_config_path;
 	}
 
+	const std::string& GetUsedDatabaseConfig() const
+	{
+		static std::string empty_db_config;
+		return m_db_config ? *m_db_config : empty_db_config;
+	}
+
 	bool IsChildProcess() const
 	{
 		return m_config_mode == cfg_mode::continuous;
@@ -419,7 +433,7 @@ public:
 		return emulation_state_guard_t{this};
 	}
 
-	game_boot_result BootGame(const std::string& path, const std::string& title_id = "", bool direct = false, cfg_mode config_mode = cfg_mode::custom, const std::string& config_path = "");
+	game_boot_result BootGame(const std::string& path, const std::string& title_id = "", bool direct = false, cfg_mode config_mode = cfg_mode::custom, const std::string& config_path = "", const std::optional<std::string>& db_config=std::nullopt);
     game_boot_result BootISO(const std::string& path,const std::string& title_id,int fd,int dec_key_fd,cfg_mode config_mode = cfg_mode::custom, const std::string& config_path = "");
 
     bool BootRsxCapture(const std::string& path);
@@ -466,6 +480,13 @@ public:
 	bool HasGui() const { return m_has_gui; }
 	void SetHasGui(bool has_gui) { m_has_gui = has_gui; }
 
+	bool IsHeadless() const { return m_headless; }
+	void SetHeadless(bool headless) { m_headless = headless; }
+
+	const std::set<video_renderer>& GetSupportedRenderers() const { return m_supported_renderers; }
+	void SetSupportedRenderers(std::set<video_renderer> renderers) { m_supported_renderers = std::move(renderers); }
+
+	video_renderer GetDefaultRenderer() const { return m_default_renderer; }
 	void SetDefaultRenderer(video_renderer renderer) { m_default_renderer = renderer; }
 	void SetDefaultGraphicsAdapter(std::string adapter) { m_default_graphics_adapter = std::move(adapter); }
 
@@ -474,9 +495,9 @@ public:
 	void ConfigurePPUCache() const;
 
 	std::set<std::string> GetGameDirs() const;
-	u32 AddGamesFromDir(const std::string& path);
-	game_boot_result AddGame(const std::string& path);
-	game_boot_result AddGameToYml(const std::string& path);
+	u32 AddGamesFromDir(std::string path);
+	game_boot_result AddGame(std::string path);
+	game_boot_result AddGameToYml(std::string path);
 	u32 RemoveGamesFromDir(const std::string& games_dir, const std::vector<std::string>& serials_to_remove_from_yml = {}, bool save_on_disk = true);
 	u32 RemoveGames(const std::vector<std::string>& title_id_list, bool save_on_disk = true);
 	game_boot_result RemoveGameFromYml(const std::string& title_id);
@@ -495,8 +516,7 @@ public:
 	static bool IsVsh();
 	static bool IsValidSfb(const std::string& path);
 
-	static void SaveSettings(const std::string& settings, const std::string& title_id);
-
+	static void SaveSettings(std::string_view settings, const std::string& title_id);
 #if __ANDROID__
     bool IsISO() const { return m_iso_fd!=-1; }
     int GetISOFd() const { return m_iso_fd; }

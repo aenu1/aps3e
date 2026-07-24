@@ -50,7 +50,7 @@ extern void qt_events_aware_op(int repeat_duration_ms, std::function<bool()> wra
         }
     }
 }
-
+/*
 extern std::shared_ptr<CPUDisAsm> make_disasm(const cpu_thread* cpu, shared_ptr<cpu_thread> handle)
 {
     if (!handle)
@@ -75,7 +75,7 @@ extern std::shared_ptr<CPUDisAsm> make_disasm(const cpu_thread* cpu, shared_ptr<
 
     result->set_cpu_handle(std::move(handle));
     return result;
-}
+}*/
 #if 1
 template <>
 void fmt_class_string<cheat_type>::format(std::string& out, u64 arg)
@@ -1517,11 +1517,11 @@ std::string keyboard_pad_handler::GetKeyName(const u32& keyCode)
 }
 #endif
 
-std::vector<std::set<u32>> AndroidVirtualPadHandler::GetKeyCombos(const cfg::string& cfg_string)
+std::vector<std::set<u32>> AndroidVirtualPadHandler::GetKeyCombos(std::string_view cfg_string)
 {
     std::vector<std::set<u32>> res;
 
-    for (const pad::combo& combo : cfg_pad::get_combos(cfg_string.to_string()))
+    for (const pad::combo& combo : cfg_pad::get_combos(cfg_string))
     {
         std::set<u32> key_codes;
 
@@ -1678,8 +1678,9 @@ bool AndroidVirtualPadHandler::bindPadToDevice(std::shared_ptr<Pad> pad)
 
     const auto find_combos = [this](const cfg::string& name)
     {
-        std::vector<std::set<u32>> combos = find_key_combos(mouse_list, name);
-        for (const std::set<u32>& combo : GetKeyCombos(name)) combos.push_back(combo);
+        //std::vector<std::set<u32>> combos = find_key_combos(mouse_list, name);
+        const std::vector<std::set<u32>> combos = GetKeyCombos(name.to_string());
+        //for (const std::set<u32>& combo : GetKeyCombos(name)) combos.push_back(combo);
 
         if (!combos.empty())
         {
@@ -2673,3 +2674,5 @@ void mouse_gyro_handler::clear()
 {}
 
 void mouse_gyro_handler::apply_gyro(const std::shared_ptr<Pad>& pad){}
+void mouse_gyro_handler::set_enabled(bool enabled)
+{}

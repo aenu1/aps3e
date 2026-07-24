@@ -398,7 +398,7 @@ namespace ae{
                 }
                 case music_handler::qt:
                 {
-                    return std::make_shared<android_music_handler>();
+                    return std::make_shared<null_music_handler>();
                 }
             }
         };
@@ -502,7 +502,10 @@ namespace ae{
         callbacks.enable_gamemode = [](bool) {
             PRE("enable_gamemode");
         };
-
+        callbacks.get_database_config = [](const std::string&) -> std::string {
+            PRE("get_database_config");
+            return "";
+        };
         return callbacks;
     }
     void init(){
@@ -556,6 +559,7 @@ namespace ae{
 
         Emu.SetCallbacks(std::move(callbacks));
         Emu.SetHasGui(true);
+        Emu.SetSupportedRenderers({video_renderer::vulkan, video_renderer::null});
 
         Emu.Init();
     }
@@ -567,7 +571,7 @@ namespace ae{
             Emu.SetForceBoot(true);
 
             const char* config_path=getenv("APS3E_CUSTOM_CONFIG_YAML_PATH");
-            const cfg_mode config_mode = config_path?cfg_mode::custom:cfg_mode::global ;
+            const cfg_mode config_mode = config_path?cfg_mode::custom:cfg_mode::database_config ;
 
             aps3e_log.warning("iso_fd: %d",boot_game_fd);
             const game_boot_result error =boot_type==BOOT_TYPE_WITH_PATH? Emu.BootGame(boot_game_path, game_id, true, config_mode, config_path?:"")

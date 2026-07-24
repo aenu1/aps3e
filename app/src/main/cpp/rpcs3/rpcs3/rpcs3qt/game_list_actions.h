@@ -2,6 +2,7 @@
 
 #include "gui_game_info.h"
 #include "shortcut_utils.h"
+#include "Loader/content_validation.h"
 
 #include <QFuture>
 #include <QObject>
@@ -48,12 +49,13 @@ public:
 		std::set<std::string> removed_disc_list; // Filled in by RemoveContentList()
 	};
 
-	static bool IsGameRunning(const std::string& serial);
+	static bool IsGameRunning(std::string_view serial);
 
 	void CreateShortcuts(const std::vector<game_info>& games, const std::set<gui::utils::shortcut_location>& locations);
 
 	void ShowRemoveGameDialog(const std::vector<game_info>& games);
 	void ShowGameInfoDialog(const std::vector<game_info>& games);
+	void ShowGameIntegrityDialog(content_file_type file_type, const std::string& game_path);
 	void ShowDiskUsageDialog();
 
 	// NOTES:
@@ -97,6 +99,8 @@ private:
 	game_list_frame* m_game_list_frame = nullptr;
 	std::shared_ptr<gui_settings> m_gui_settings;
 	QFuture<void> m_disk_usage_future;
+	QFuture<void> m_game_integrity_future;
+	std::shared_ptr<content_validation> m_game_validator = std::make_shared<content_validation>();
 
 	// NOTE:
 	//   m_content_info is used by:

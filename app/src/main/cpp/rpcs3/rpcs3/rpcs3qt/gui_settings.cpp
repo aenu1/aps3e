@@ -102,11 +102,50 @@ namespace gui
 	
 		fmt::throw_exception("get_trophy_game_list_column_name: Invalid column");
 	}
+
+	QString window_states_to_string(Qt::WindowStates states)
+	{
+		if (states & Qt::WindowFullScreen) return "FullScreen";
+		if (states & Qt::WindowMaximized) return "Maximized";
+		if (states & Qt::WindowMinimized) return "Minimized";
+		return "Windowed";
+	}
+
+	Qt::WindowState string_to_window_states(const QString& state)
+	{
+		const QString lower = state.toLower(); // Allow for better user experience
+		if (lower == "fullscreen") return Qt::WindowFullScreen;
+		if (lower == "maximized") return Qt::WindowMaximized;
+		if (lower == "minimized") return Qt::WindowMinimized;
+		return Qt::WindowNoState;
+	}
+
+	QString visibility_to_string(QWindow::Visibility visibility)
+	{
+		switch (visibility)
+		{
+		case QWindow::Visibility::Windowed: return "Windowed";
+		case QWindow::Visibility::Minimized: return "Minimized";
+		case QWindow::Visibility::Maximized: return "Maximized";
+		case QWindow::Visibility::FullScreen: return "FullScreen";
+		default: return "AutomaticVisibility";
+		}
+	}
+
+	QWindow::Visibility string_to_visibility(const QString& visibility)
+	{
+		const QString lower = visibility.toLower(); // Allow for better user experience
+		if (lower == "windowed") return QWindow::Visibility::Windowed;
+		if (lower == "minimized") return QWindow::Visibility::Minimized;
+		if (lower == "maximized") return QWindow::Visibility::Maximized;
+		if (lower == "fullscreen") return QWindow::Visibility::FullScreen;
+		return QWindow::Visibility::AutomaticVisibility;
+	}
 }
 
 gui_settings::gui_settings(QObject* parent) : settings(parent)
 {
-	m_settings = std::make_unique<QSettings>(ComputeSettingsDir() + gui::Settings + ".ini", QSettings::Format::IniFormat, parent);
+	m_settings = std::make_unique<QSettings>(GetSettingsDir() + gui::Settings + ".ini", QSettings::Format::IniFormat, parent);
 }
 
 QStringList gui_settings::GetGameListCategoryFilters(bool is_list_mode) const
@@ -307,7 +346,7 @@ QColor gui_settings::GetCustomColor(int col) const
 QStringList gui_settings::GetStylesheetEntries() const
 {
 	const QStringList name_filter = QStringList("*.qss");
-	QStringList res = gui::utils::get_dir_entries(m_settings_dir, name_filter);
+	QStringList res = gui::utils::get_dir_entries(QDir(GetSettingsDir()), name_filter);
 #if !defined(_WIN32)
 	// Makes stylesheets load if using AppImage (App Bundle) or installed to /usr/bin
 #ifdef __APPLE__
