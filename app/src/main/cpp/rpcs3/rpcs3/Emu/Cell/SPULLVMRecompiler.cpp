@@ -8431,6 +8431,11 @@ public:
 		return byteswap(data);
 	}
 
+	static constexpr u64 make_negative_LS_offset(u32 original)
+	{
+		return original | ~u64{SPU_LS_SIZE - 1};
+	}
+
 	void STQX(spu_opcode_t op)
 	{
 		const auto a = get_vr(op.ra);
@@ -8440,17 +8445,13 @@ public:
 		{
 			if (auto [ok, data] = get_const_vector(pair.first.value, m_pos); ok)
 			{
-				data._u32[3] %= SPU_LS_SIZE;
+				// Sign-extend the offset to avoid referring to the same LS block through a mirror.
+				// Distinct mirrored addresses can confuse LLVM's alias analysis.
+				const u64 addend = data._u32[3] >= SPU_LS_SIZE ? make_negative_LS_offset(data._u32[3]) : data._u32[3];
 
 				if (const u32 remainder = data._u32[3] % 0x10; remainder == 0)
 				{
-					value_t<u64> addr = eval(splat<u64>(data._u32[3]) + zext<u64>(extract(pair.second, 3) & 0x3fff0));
-					make_store_ls(addr, get_vr<u8[16]>(op.rt));
-					return;
-				}
-				else
-				{
-					value_t<u64> addr = eval(splat<u64>(data._u32[3] - remainder) + zext<u64>((extract(pair.second, 3) + remainder) & 0x3fff0));
+					value_t<u64> addr = eval(splat<u64>(addend) + zext<u64>(extract(pair.second, 3) & 0x3fff0));
 					make_store_ls(addr, get_vr<u8[16]>(op.rt));
 					return;
 				}
@@ -8470,17 +8471,12 @@ public:
 		{
 			if (auto [ok, data] = get_const_vector(pair.first.value, m_pos); ok)
 			{
-				data._u32[3] %= SPU_LS_SIZE;
+				// Sign-extend the offset to avoid referring to the same LS block through a mirror.
+				const u64 addend = data._u32[3] >= SPU_LS_SIZE ? make_negative_LS_offset(data._u32[3]) : data._u32[3];
 
 				if (const u32 remainder = data._u32[3] % 0x10; remainder == 0)
 				{
-					value_t<u64> addr = eval(splat<u64>(data._u32[3]) + zext<u64>(extract(pair.second, 3) & 0x3fff0));
-					set_vr(op.rt, make_load_ls(addr));
-					return;
-				}
-				else
-				{
-					value_t<u64> addr = eval(splat<u64>(data._u32[3] - remainder) + zext<u64>((extract(pair.second, 3) + remainder) & 0x3fff0));
+					value_t<u64> addr = eval(splat<u64>(addend) + zext<u64>(extract(pair.second, 3) & 0x3fff0));
 					set_vr(op.rt, make_load_ls(addr));
 					return;
 				}
@@ -8541,18 +8537,23 @@ public:
 
 		if (auto [ok, x, y] = match_expr(a, match<u32[4]>() + match<u32[4]>()); ok)
 		{
-			if (auto [ok1, data] = get_const_vector(x.value, m_pos + 1); ok1 && data._u32[3] % 16 == 0)
+			for (bool swap : {false, true})
 			{
-				value_t<u64> addr = eval(zext<u64>(extract(y, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(data._u32[3] & 0x3fff0)));
-				make_store_ls(addr, get_vr<u8[16]>(op.rt));
-				return;
-			}
+				const auto& constant = swap ? y : x;
+				const auto& base = swap ? x : y;
 
-			if (auto [ok2, data] = get_const_vector(y.value, m_pos + 2); ok2 && data._u32[3] % 16 == 0)
-			{
-				value_t<u64> addr = eval(zext<u64>(extract(x, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(data._u32[3] & 0x3fff0)));
-				make_store_ls(addr, get_vr<u8[16]>(op.rt));
-				return;
+				if (auto [ok, data] = get_const_vector(constant.value, m_pos); ok)
+				{
+					// Sign-extend the offset to keep LLVM's LS addressing in one alias domain.
+					const u64 addend = data._u32[3] >= SPU_LS_SIZE ? make_negative_LS_offset(data._u32[3]) : data._u32[3];
+
+					if (const u32 remainder = data._u32[3] % 0x10; remainder == 0)
+					{
+						value_t<u64> addr = eval(zext<u64>(extract(base, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(addend)));
+						make_store_ls(addr, get_vr<u8[16]>(op.rt));
+						return;
+					}
+				}
 			}
 		}
 
@@ -8564,20 +8565,25 @@ public:
 	{
 		const auto a = get_vr(op.ra);
 
-		if (auto [ok, x1, y1] = match_expr(a, match<u32[4]>() + match<u32[4]>()); ok)
+		if (auto [ok, x, y] = match_expr(a, match<u32[4]>() + match<u32[4]>()); ok)
 		{
-			if (auto [ok1, data] = get_const_vector(x1.value, m_pos + 1); ok1 && data._u32[3] % 16 == 0)
+			for (bool swap : {false, true})
 			{
-				value_t<u64> addr = eval(zext<u64>(extract(y1, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(data._u32[3] & 0x3fff0)));
-				set_vr(op.rt, make_load_ls(addr));
-				return;
-			}
+				const auto& constant = swap ? y : x;
+				const auto& base = swap ? x : y;
 
-			if (auto [ok2, data] = get_const_vector(y1.value, m_pos + 2); ok2 && data._u32[3] % 16 == 0)
-			{
-				value_t<u64> addr = eval(zext<u64>(extract(x1, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(data._u32[3] & 0x3fff0)));
-				set_vr(op.rt, make_load_ls(addr));
-				return;
+				if (auto [ok, data] = get_const_vector(constant.value, m_pos); ok)
+				{
+					// Sign-extend the offset to keep LLVM's LS addressing in one alias domain.
+					const u64 addend = data._u32[3] >= SPU_LS_SIZE ? make_negative_LS_offset(data._u32[3]) : data._u32[3];
+
+					if (const u32 remainder = data._u32[3] % 0x10; remainder == 0)
+					{
+						value_t<u64> addr = eval(zext<u64>(extract(base, 3) & 0x3fff0) + ((get_imm<u64>(op.si10) << 4) + splat<u64>(addend)));
+						set_vr(op.rt, make_load_ls(addr));
+						return;
+					}
+				}
 			}
 		}
 
