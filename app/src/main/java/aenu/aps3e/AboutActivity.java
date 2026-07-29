@@ -218,6 +218,9 @@ public class AboutActivity extends AppCompatActivity {
                 + "2.40(2026-06-30)\n"
                 + " *修复Mali设备的闪烁问题（感谢o-bin)\n"
                 + " *补丁支持\n"
+                + "2.41(2026-07-30)\n"
+                + " *更新RPCS3版本\n"
+                + " *部分修正与完善\n"
                 + " \n";
 
         return log;

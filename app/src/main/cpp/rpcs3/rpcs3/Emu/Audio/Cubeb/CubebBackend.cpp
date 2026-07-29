@@ -123,9 +123,20 @@ bool CubebBackend::Open(std::string_view dev_id, AudioFreq freq, AudioSampleSize
 
 	if (!device.handle)
 	{
-		if (use_default_device) Cubeb.error("Opening default device failed");
-		else Cubeb.error("Device with id=%s not found", dev_id);
-		return false;
+        if (use_default_device)
+        {
+            device = GetDefaultDeviceAlt(freq, sample_size, static_cast<u32>(ch_cnt));
+
+            if (!device.handle)
+            {
+                Cubeb.error("Cannot detect default device. Channel count detection unavailable.");
+            }
+        }
+        else
+        {
+            Cubeb.error("Device with id=%s not found", dev_id);
+            return false;
+        }
 	}
 
 	if (device.ch_cnt == 0)
