@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="apply_recommended_config">套用推薦配置</string>
+<string name="apply_recommended_config_confirm">是否從資料庫套用推薦配置？</string>
+<string name="apply_recommended_config_success">推薦配置已套用</string>
+<string name="apply_recommended_config_not_found">未找到此遊戲的推薦配置</string>
+<string name="apply_recommended_config_failed">套用推薦配置失敗</string>
 
     <string name="patch_manager">修補檔管理器</string>
     <string name="download_patch_table">下載修補檔表</string>

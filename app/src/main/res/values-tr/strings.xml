@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="apply_recommended_config">Önerilen Yapılandırmayı Uygula</string>
+	<string name="apply_recommended_config_confirm">Veritabanından önerilen yapılandırma uygulansın mı?</string>
+	<string name="apply_recommended_config_success">Önerilen yapılandırma uygulandı</string>
+	<string name="apply_recommended_config_not_found">Bu oyun için önerilen yapılandırma bulunamadı</string>
+	<string name="apply_recommended_config_failed">Önerilen yapılandırma uygulanamadı</string>
 
 	<string name="patch_manager">Yama Yöneticisi</string>
 	<string name="download_patch_table">Yama Tablosunu İndir</string>

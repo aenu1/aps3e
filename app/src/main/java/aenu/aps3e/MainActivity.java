@@ -951,6 +951,7 @@ public class MainActivity extends AppCompatActivity {
 				"aps3e/config/games",
 				"aps3e/config/Icons",
 				"aps3e/config/Icons/ui",
+				"aps3e/config/patches",
 				"aps3e/config/custom_cfg",
 				"aps3e/logs",
 				"aps3e/font",
@@ -971,7 +972,7 @@ public class MainActivity extends AppCompatActivity {
 		File icons_ui_output_dir=new File(Application.get_app_data_dir().getParent(),"aps3e/config/Icons/ui");
 		Utils.extractAssetsDir(this,"Icons/ui",icons_ui_output_dir);
 
-		File xxxx_txt=new File(Application.get_app_data_dir(),"xxxx.txt");
+		/*File xxxx_txt=new File(Application.get_app_data_dir(),"xxxx.txt");
 		if(!xxxx_txt.exists()) {
 			String xxxx_txt_str="";
 			xxxx_txt_str+=Emulator.get.generate_config_xml();
@@ -992,12 +993,17 @@ public class MainActivity extends AppCompatActivity {
 				} catch (IOException e) {
 				}
 			}
+		}*/
+
+		File config_yml=Application.get_global_config_file();;
+		if(!config_yml.exists()) {
+			if(Application.get_default_config_file().exists())
+				Utils.copy_file(Application.get_default_config_file(),config_yml);
 		}
 
-		File config_yml_output_dir=new File(Application.get_app_data_dir().getParent(),"aps3e/config");
-		if(!new File(config_yml_output_dir,"config.yml").exists()) {
-			//Application.extractAssetsDir(this, "config", config_yml_output_dir);
-			Utils.copy_file(Application.get_default_config_file(),new File(config_yml_output_dir,"config.yml"));
+		File patch_yml=Application.get_patch_yml_file();
+		if(!Application.get_patch_yml_file().exists()){
+			Utils.copy_file(Application.get_patch_yml_file(),patch_yml);
 		}
 		
 		/*File nomedia=new File(Environment.getExternalStorageDirectory(),"aps3e/.nomedia");

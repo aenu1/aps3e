@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="apply_recommended_config">Applica Configurazione Consigliata</string>
+	<string name="apply_recommended_config_confirm">Applicare la configurazione consigliata dal database?</string>
+	<string name="apply_recommended_config_success">Configurazione consigliata applicata</string>
+	<string name="apply_recommended_config_not_found">Nessuna configurazione consigliata trovata per questo gioco</string>
+	<string name="apply_recommended_config_failed">Impossibile applicare la configurazione consigliata</string>
     <string name="patch_manager">Gestore Patch</string>
     <string name="download_patch_table">Scarica Tabella Patch</string>
     <string name="patch_downloaded_info">File patch: patch.yml\nDimensione: %s</string>

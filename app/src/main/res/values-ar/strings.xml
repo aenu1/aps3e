@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="apply_recommended_config">تطبيق الإعدادات الموصى بها</string>
+	<string name="apply_recommended_config_confirm">تطبيق الإعدادات الموصى بها من قاعدة البيانات؟</string>
+	<string name="apply_recommended_config_success">تم تطبيق الإعدادات الموصى بها</string>
+	<string name="apply_recommended_config_not_found">لم يتم العثور على إعدادات موصى بها لهذه اللعبة</string>
+	<string name="apply_recommended_config_failed">فشل في تطبيق الإعدادات الموصى بها</string>
 
 	<string name="patch_manager">مدير الرقع</string>
 	<string name="download_patch_table">تنزيل جدول الرقع</string>

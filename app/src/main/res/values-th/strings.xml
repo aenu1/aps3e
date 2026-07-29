@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="apply_recommended_config">ใช้การตั้งค่าที่แนะนำ</string>
+	<string name="apply_recommended_config_confirm">ใช้การตั้งค่าที่แนะนำจากฐานข้อมูล?</string>
+	<string name="apply_recommended_config_success">ใช้การตั้งค่าที่แนะนำแล้ว</string>
+	<string name="apply_recommended_config_not_found">ไม่พบการตั้งค่าที่แนะนำสำหรับเกมนี้</string>
+	<string name="apply_recommended_config_failed">ไม่สามารถใช้การตั้งค่าที่แนะนำได้</string>
+
 	<string name="patch_manager">ตัวจัดการแพทช์</string>
 	<string name="download_patch_table">ดาวน์โหลดตารางแพทช์</string>
 	<string name="patch_downloaded_info">ไฟล์แพทช์: patch.yml\nขนาด: %s</string>

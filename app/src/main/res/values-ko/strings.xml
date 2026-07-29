@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+<string name="apply_recommended_config">권장 설정 적용</string>
+<string name="apply_recommended_config_confirm">데이터베이스에서 권장 설정을 적용하시겠습니까?</string>
+<string name="apply_recommended_config_success">권장 설정이 적용되었습니다</string>
+<string name="apply_recommended_config_not_found">이 게임에 대한 권장 설정을 찾을 수 없습니다</string>
+<string name="apply_recommended_config_failed">권장 설정 적용에 실패했습니다</string>
 
 <string name="patch_manager">패치 관리자</string>
 <string name="download_patch_table">패치 테이블 다운로드</string>

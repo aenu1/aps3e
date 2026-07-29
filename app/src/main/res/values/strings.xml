@@ -3,6 +3,12 @@
     <!--string name="app_name">aPS3e Premium</string-->
 	<string name="app_name">aPS3e</string>
 
+	<string name="apply_recommended_config">Apply Recommended Config</string>
+	<string name="apply_recommended_config_confirm">Apply recommended configuration from database?</string>
+	<string name="apply_recommended_config_success">Recommended configuration applied</string>
+	<string name="apply_recommended_config_not_found">No recommended configuration found for this game</string>
+	<string name="apply_recommended_config_failed">Failed to apply recommended configuration</string>
+
 	<string name="patch_manager">Patch Manager</string>
 	<string name="download_patch_table">Download Patch Table</string>
 	<string name="patch_downloaded_info">Patch file: patch.yml\nSize: %s</string>

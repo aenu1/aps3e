@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="apply_recommended_config">Áp dụng cấu hình khuyến nghị</string>
+    <string name="apply_recommended_config_confirm">Áp dụng cấu hình khuyến nghị từ cơ sở dữ liệu?</string>
+    <string name="apply_recommended_config_success">Đã áp dụng cấu hình khuyến nghị</string>
+    <string name="apply_recommended_config_not_found">Không tìm thấy cấu hình khuyến nghị cho trò chơi này</string>
+    <string name="apply_recommended_config_failed">Không thể áp dụng cấu hình khuyến nghị</string>
 
     <string name="patch_manager">Trình quản lý bản vá</string>
     <string name="download_patch_table">Tải bảng bản vá</string>

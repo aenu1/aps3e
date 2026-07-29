@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="apply_recommended_config">Guna Konfigurasi Disyorkan</string>
+    <string name="apply_recommended_config_confirm">Guna konfigurasi disyorkan dari pangkalan data?</string>
+    <string name="apply_recommended_config_success">Konfigurasi disyorkan telah digunakan</string>
+    <string name="apply_recommended_config_not_found">Tiada konfigurasi disyorkan ditemui untuk permainan ini</string>
+    <string name="apply_recommended_config_failed">Gagal menggunakan konfigurasi disyorkan</string>
+
     <string name="patch_manager">Pengurus Patch</string>
     <string name="download_patch_table">Muat Turun Jadual Patch</string>
     <string name="patch_downloaded_info">Fail patch: patch.yml\nSaiz: %s</string>

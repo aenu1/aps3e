@@ -47,12 +47,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.IOException;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.sql.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -625,145 +620,62 @@ public class UserDataActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(getString(titleResId));
         }
 
-        Button btn_download=(Button)layout.findViewById(R.id.btn_compat_download);
-        btn_download.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                download_compatibility_table();
-            }
-        });
-
         TextView text_compat_content=(TextView)layout.findViewById(R.id.text_compat_content);
 
-        File compatTableFile = Application.get_compatibility_table_file();
-
-        if (compatTableFile.exists()) {
-            try {
-                ArrayList<Emulator.MetaInfo> metas= MainActivity.GameMetaInfoAdapter.load_game_list_from_json_file(
-                        MainActivity.get_game_list_file());
-                JSONObject json = new JSONObject(Utils.read_file_as_str(compatTableFile)).getJSONObject("results");
-                StringBuilder sb = new StringBuilder();
-                for(Emulator.MetaInfo meta:metas){
-                    JSONObject compat_info = json.optJSONObject(meta.serial);
-                    if (compat_info != null) {
-                        sb.append(meta.name).append("\n");
-                        sb.append(compat_info.getString("status")).append("\n");
-                    }
+        try {
+            ArrayList<Emulator.MetaInfo> metas= MainActivity.GameMetaInfoAdapter.load_game_list_from_json_file(
+                    MainActivity.get_game_list_file());
+            byte[] compatData = Utils.load_assets_file(this, "compatibility_table.json");
+            JSONObject json = new JSONObject(new String(compatData));
+            StringBuilder sb = new StringBuilder();
+            for(Emulator.MetaInfo meta:metas){
+                JSONObject compat_info = json.optJSONObject(meta.serial);
+                if (compat_info != null) {
+                    sb.append(meta.name).append("\n");
+                    sb.append(compat_info.getString("status")).append("\n");
                 }
-                String text=sb.toString();
-                SpannableString spannableString = new SpannableString(text);
-                                
-                String[] lines = text.split("\n");
-                int lineStartIndex = 0;
-                for (int i = 0; i < lines.length; i += 2) {
-                    if (i + 1 < lines.length) {
-                        String gameName = lines[i];
-                        String status = lines[i + 1];
-                                        
-                        int statusStart = lineStartIndex + gameName.length() + 1;
-                        int statusEnd = statusStart + status.length();
-                                        
-                        int color;
-                        if (status.equals("Playable")) {
-                            color = Color.GREEN;
-                        } else if (status.equals("Ingame")) {
-                            color = Color.rgb(255, 165, 0); //
-                        } else if (status.equals("Intro")) {
-                            color = Color.RED;
-                        } else if (status.equals("Loadable")) {
-                            color = Color.GRAY;
-                        } else {
-                            color = Color.GRAY; // 默认颜色
-                        }
-                                        
-                        spannableString.setSpan(new ForegroundColorSpan(color), 
-                                statusStart, statusEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
-                                        
-                        lineStartIndex += gameName.length() + status.length() + 2; // +2 for two newlines
-                    }
-                }
-                                
-                text_compat_content.setText(spannableString);
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
-
+            String text=sb.toString();
+            SpannableString spannableString = new SpannableString(text);
+                            
+            String[] lines = text.split("\n");
+            int lineStartIndex = 0;
+            for (int i = 0; i < lines.length; i += 2) {
+                if (i + 1 < lines.length) {
+                    String gameName = lines[i];
+                    String status = lines[i + 1];
+                                    
+                    int statusStart = lineStartIndex + gameName.length() + 1;
+                    int statusEnd = statusStart + status.length();
+                                    
+                    int color;
+                    if (status.equals("Playable")) {
+                        color = Color.GREEN;
+                    } else if (status.equals("Ingame")) {
+                        color = Color.rgb(255, 165, 0);
+                    } else if (status.equals("Intro")) {
+                        color = Color.RED;
+                    } else if (status.equals("Loadable")) {
+                        color = Color.GRAY;
+                    } else {
+                        color = Color.GRAY;
+                    }
+                                    
+                    spannableString.setSpan(new ForegroundColorSpan(color), 
+                            statusStart, statusEnd, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                    
+                    lineStartIndex += gameName.length() + status.length() + 2;
+                }
+            }
+                            
+            text_compat_content.setText(spannableString);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
         current_page_type = PAGE_TYPE_COMPATIBILITY_TABLE;
-    }
-
-    private void download_compatibility_table() {
-
-        ProgressTask pt=new ProgressTask(this)
-                .set_progress_message(getString(R.string.downloading))
-                .set_failed_task(new ProgressTask.UI_Task() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UserDataActivity.this, getString(R.string.download_failed), Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .set_done_task(new ProgressTask.UI_Task() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UserDataActivity.this, getString(R.string.download_success), Toast.LENGTH_SHORT).show();
-                        show_compatibility_table_page();
-                    }
-                });
-
-                pt.call(new ProgressTask.Task() {
-                    @Override
-                    public void run(ProgressTask task) {
-                        try {
-                            String link = "https://rpcs3.net/compatibility?api=v1&export";
-                            File compat_table_file = Application.get_compatibility_table_file();
-
-                            File parentDir = compat_table_file.getParentFile();
-                            if (parentDir != null && !parentDir.exists()) {
-                                parentDir.mkdirs();
-                            }
-
-                            URL url = new URL(link);
-                            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                            connection.setConnectTimeout(10000); // 10 秒连接超时
-                            connection.setReadTimeout(30000);    // 30 秒读取超时
-                            connection.setRequestMethod("GET");
-                            
-                            int responseCode = connection.getResponseCode();
-                            if (responseCode != HttpURLConnection.HTTP_OK) {
-                                throw new IOException("HTTP 错误：" + responseCode);
-                            }
-                            
-                            // 获取输入流
-                            InputStream inputStream = connection.getInputStream();
-                            
-                            // 写入文件
-                            FileOutputStream outputStream = new FileOutputStream(compat_table_file);
-                            
-                            byte[] buffer = new byte[16384];
-                            int bytesRead;
-                            long totalBytes = 0;
-                            
-                            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                                outputStream.write(buffer, 0, bytesRead);
-                                totalBytes += bytesRead;
-                            }
-                            
-                            outputStream.close();
-                            inputStream.close();
-                            connection.disconnect();
-
-                            task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
-                            
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            task.task_handler.sendEmptyMessage(ProgressTask.TASK_FAILED);
-                        }
-                    }
-                });
-                
     }
 
     private void show_patch_table_page() {
@@ -774,99 +686,21 @@ public class UserDataActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(getString(titleResId));
         }
 
-        Button btn_download = (Button) layout.findViewById(R.id.btn_patch_download);
-        btn_download.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                download_patch_table();
-            }
-        });
-
         TextView text_patch_content = (TextView) layout.findViewById(R.id.text_patch_content);
-        File patchFile = Application.get_patch_yml_file();
 
-        if(patchFile.exists()) {
-            try {
-                String fileSize = format_file_size(patchFile.length());
-                String content = Utils.read_file_as_str(patchFile);
-                int previewLen = Math.min(content.length(), 3000);
-                String preview = content.substring(0, previewLen);
-                if(content.length() > 3000) preview += "\n...";
-                text_patch_content.setText(getString(R.string.patch_downloaded_info, fileSize) + "\n\n" + preview);
-            } catch (Exception e) {
-                text_patch_content.setText(e.getMessage());
-            }
-        } else {
-            text_patch_content.setText(R.string.patch_not_downloaded);
+        try {
+            byte[] patchData = Utils.load_assets_file(this, "patch.yml");
+            String content = new String(patchData, "UTF-8");
+            String fileSize = format_file_size(patchData.length);
+            int previewLen = Math.min(content.length(), 3000);
+            String preview = content.substring(0, previewLen);
+            if(content.length() > 3000) preview += "\n...";
+            text_patch_content.setText(getString(R.string.patch_downloaded_info, fileSize) + "\n\n" + preview);
+        } catch (Exception e) {
+            text_patch_content.setText(e.getMessage());
         }
 
         current_page_type = PAGE_TYPE_PATCH_MANAGER;
-    }
-
-    private void download_patch_table() {
-        final String patch_engine_version = "1.2";
-        final String url_str = "https://rpcs3.net/compatibility?patch&api=v1&v=" + patch_engine_version;
-
-        ProgressTask pt = new ProgressTask(this)
-                .set_progress_message(getString(R.string.downloading))
-                .set_failed_task(new ProgressTask.UI_Task() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UserDataActivity.this, getString(R.string.download_failed), Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .set_done_task(new ProgressTask.UI_Task() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UserDataActivity.this, getString(R.string.download_success), Toast.LENGTH_SHORT).show();
-                        show_patch_table_page();
-                    }
-                });
-
-        pt.call(new ProgressTask.Task() {
-            @Override
-            public void run(ProgressTask task) {
-                try {
-                    File patch_file = Application.get_patch_yml_file();
-                    File parentDir = patch_file.getParentFile();
-                    if(parentDir != null && !parentDir.exists()) {
-                        parentDir.mkdirs();
-                    }
-
-                    URL url = new URL(url_str);
-                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.setConnectTimeout(10000);
-                    connection.setReadTimeout(30000);
-                    connection.setRequestMethod("GET");
-
-                    int responseCode = connection.getResponseCode();
-                    if(responseCode != HttpURLConnection.HTTP_OK) {
-                        throw new IOException("HTTP error: " + responseCode);
-                    }
-
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while((line = reader.readLine()) != null) {
-                        sb.append(line);
-                    }
-                    reader.close();
-                    connection.disconnect();
-
-                    JSONObject json = new JSONObject(sb.toString());
-                    String patch_content = json.getString("patch");
-
-                    FileOutputStream fos = new FileOutputStream(patch_file);
-                    fos.write(patch_content.getBytes("UTF-8"));
-                    fos.close();
-
-                    task.task_handler.sendEmptyMessage(ProgressTask.TASK_DONE);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    task.task_handler.sendEmptyMessage(ProgressTask.TASK_FAILED);
-                }
-            }
-        });
     }
 
     private static String format_file_size(long bytes) {

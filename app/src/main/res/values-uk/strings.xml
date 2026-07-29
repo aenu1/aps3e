@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="apply_recommended_config">Застосувати рекомендовану конфігурацію</string>
+    <string name="apply_recommended_config_confirm">Застосувати рекомендовану конфігурацію з бази даних?</string>
+    <string name="apply_recommended_config_success">Рекомендовану конфігурацію застосовано</string>
+    <string name="apply_recommended_config_not_found">Рекомендовану конфігурацію для цієї гри не знайдено</string>
+    <string name="apply_recommended_config_failed">Не вдалося застосувати рекомендовану конфігурацію</string>
 
     <string name="patch_manager">Менеджер патчів</string>
     <string name="download_patch_table">Завантажити таблицю патчів</string>

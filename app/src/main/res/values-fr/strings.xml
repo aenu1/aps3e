@@ -3,6 +3,11 @@
 	<!-- +++++++++++++++++++++++++++ -->
 	<!--无法转义',&apos;会报错 -->
 	<!-- +++++++++++++++++++++++++++ -->
+	<string name="apply_recommended_config">Appliquer la configuration recommandée</string>
+	<string name="apply_recommended_config_confirm">Appliquer la configuration recommandée depuis la base de données ?</string>
+	<string name="apply_recommended_config_success">Configuration recommandée appliquée</string>
+	<string name="apply_recommended_config_not_found">Aucune configuration recommandée trouvée pour ce jeu</string>
+	<string name="apply_recommended_config_failed">Échec de l`application de la configuration recommandée</string>
 
     <string name="patch_manager">Gestionnaire de correctifs</string>
     <string name="download_patch_table">Télécharger la table de correctifs</string>

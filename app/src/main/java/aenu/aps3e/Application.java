@@ -67,9 +67,9 @@ public class Application extends android.app.Application
     {
         return ctx.getExternalCacheDir();
     }
-    public static File get_compatibility_table_file(){
+    /*public static File get_compatibility_table_file(){
         return new File(Application.get_app_data_dir(),"config/compatibility_table.json");
-    }
+    }*/
 
     public static File get_patches_dir(){
         File dir = new File(Application.get_app_data_dir(),"config/patches");

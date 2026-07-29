@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="apply_recommended_config">Применить рекомендуемую конфигурацию</string>
+	<string name="apply_recommended_config_confirm">Применить рекомендуемую конфигурацию из базы данных?</string>
+	<string name="apply_recommended_config_success">Рекомендуемая конфигурация применена</string>
+	<string name="apply_recommended_config_not_found">Рекомендуемая конфигурация для этой игры не найдена</string>
+	<string name="apply_recommended_config_failed">Не удалось применить рекомендуемую конфигурацию</string>
 
 	<string name="patch_manager">Менеджер патчей</string>
 	<string name="download_patch_table">Скачать таблицу патчей</string>

@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="apply_recommended_config">اعمال پیکربندی پیشنهادی</string>
+	<string name="apply_recommended_config_confirm">پیکربندی پیشنهادی از پایگاه داده اعمال شود؟</string>
+	<string name="apply_recommended_config_success">پیکربندی پیشنهادی اعمال شد</string>
+	<string name="apply_recommended_config_not_found">پیکربندی پیشنهادی برای این بازی یافت نشد</string>
+	<string name="apply_recommended_config_failed">اعمال پیکربندی پیشنهادی ناموفق بود</string>
+
 	<string name="patch_manager">مدیر پچ</string>
 	<string name="download_patch_table">دانلود جدول پچ</string>
 	<string name="patch_downloaded_info">فایل پچ: patch.yml\nحجم: %s</string>

@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+<string name="apply_recommended_config">应用推荐配置</string>
+<string name="apply_recommended_config_confirm">是否从数据库应用推荐配置？</string>
+<string name="apply_recommended_config_success">推荐配置已应用</string>
+<string name="apply_recommended_config_not_found">未找到此游戏的推荐配置</string>
+<string name="apply_recommended_config_failed">应用推荐配置失败</string>
+
 <string name="patch_manager">补丁管理器</string>
 <string name="download_patch_table">下载补丁表</string>
 <string name="patch_downloaded_info">补丁文件: patch.yml\n大小: %s</string>

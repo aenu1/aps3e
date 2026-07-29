@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="apply_recommended_config">अनुशंसित कॉन्फ़िगरेशन लागू करें</string>
+    <string name="apply_recommended_config_confirm">डेटाबेस से अनुशंसित कॉन्फ़िगरेशन लागू करें?</string>
+    <string name="apply_recommended_config_success">अनुशंसित कॉन्फ़िगरेशन लागू किया गया</string>
+    <string name="apply_recommended_config_not_found">इस गेम के लिए कोई अनुशंसित कॉन्फ़िगरेशन नहीं मिली</string>
+    <string name="apply_recommended_config_failed">अनुशंसित कॉन्फ़िगरेशन लागू करने में विफल</string>
     <string name="patch_manager">पैच प्रबंधक</string>
     <string name="download_patch_table">पैच तालिका डाउनलोड करें</string>
     <string name="patch_downloaded_info">पैच फ़ाइल: patch.yml\nआकार: %s</string>

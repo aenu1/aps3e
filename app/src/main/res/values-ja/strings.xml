@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <resources>
+<string name="apply_recommended_config">推奨設定を適用</string>
+<string name="apply_recommended_config_confirm">データベースから推奨設定を適用しますか？</string>
+<string name="apply_recommended_config_success">推奨設定が適用されました</string>
+<string name="apply_recommended_config_not_found">このゲームの推奨設定は見つかりませんでした</string>
+<string name="apply_recommended_config_failed">推奨設定の適用に失敗しました</string>
 <string name="patch_manager">パッチマネージャー</string>
 <string name="download_patch_table">パッチテーブルをダウンロード</string>
 <string name="patch_downloaded_info">パッチファイル: patch.yml\nサイズ: %s</string>

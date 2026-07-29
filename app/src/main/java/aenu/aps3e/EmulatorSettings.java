@@ -51,6 +51,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+
+import java.io.InputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -250,6 +253,158 @@ public class EmulatorSettings extends AppCompatActivity {
             return p;
         }
 
+        Preference apply_database_config_pref(){
+            Preference p=new Preference(requireContext());
+            p.setTitle(R.string.apply_recommended_config);
+            p.setIconSpaceReserved(false);
+            p.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener(){
+                public boolean onPreferenceClick(@NonNull Preference preference) {
+                    new AlertDialog.Builder(requireContext())
+                            .setMessage(getString(R.string.apply_recommended_config_confirm))
+                            .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    apply_database_config();
+                                }
+                            })
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .create().show();
+                    return true;
+                }
+            });
+            return p;
+        }
+
+        void apply_database_config(){
+            try{
+                String serial;
+                {
+                    String yml_name=new File(config_path).getName();
+                    serial=yml_name.substring(0,yml_name.length()-4);
+                }
+
+                byte[] json_bytes=Utils.load_assets_file(requireContext(),"database_config.json");
+                JSONObject db=new JSONObject(new String(json_bytes));
+                if(!db.has(serial)){
+                    Toast.makeText(requireContext(),R.string.apply_recommended_config_not_found,Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String config_yaml=db.getJSONObject(serial).getString("config");
+
+                Emulator.Config db_cfg=Emulator.Config.open_config_from_string(config_yaml);
+
+                final String[] BOOL_KEYS={
+                        "Audio|Enable Buffering",
+                        "Audio|Enable Time Stretching",
+                        "Core|Accurate RSX reservation access",
+                        "Core|Accurate SPU DMA",
+                        "Core|Debug Console Mode",
+                        "Core|Disable SPU GETLLAR Spin Optimization",
+                        "Core|SPU loop detection",
+                        "Video|Accurate ZCULL stats",
+                        "Video|Disable Vertex Cache",
+                        "Video|Emulate Special Depth Comparison",
+                        "Video|Handle RSX Memory Tiling",
+                        "Video|Multithreaded RSX",
+                        "Video|Read Color Buffers",
+                        "Video|Read Depth Buffer",
+                        "Video|Relaxed ZCULL Sync",
+                        "Video|Strict Rendering Mode",
+                        "Video|Vblank NTSC Fixup",
+                        "Video|Vulkan|Asynchronous Texture Streaming",
+                        "Video|Write Color Buffers",
+                        "Video|Write Depth Buffer",
+                };
+
+                final String[] INT_KEYS={
+                        "Core|MFC Commands Shuffling Limit",
+                        "Core|Max SPURS Threads",
+                        "Video|Anisotropic Filter Override",
+                };
+
+                final String[] STR_KEYS={
+                        "Audio|Audio Format",
+                        "Audio|Microphone Type",
+                        "Core|Libraries Control|- libaudio.sprx",
+                        "Core|Libraries Control|- libvdec.sprx",
+                        "Core|PPU Decoder",
+                        "Core|RSX FIFO Fetch Accuracy",
+                        "Core|SPU Block Size",
+                        "Core|SPU Decoder",
+                        "Core|SPU XFloat Accuracy",
+                        "Core|Sleep Timers Accuracy",
+                        "Input/Output|Camera",
+                        "Input/Output|Camera type",
+                        "Input/Output|Keyboard",
+                        "Input/Output|Mouse",
+                        "Input/Output|Move",
+                        "Video|Frame limit",
+                        "Video|MSAA",
+                        "Video|Renderer",
+                        "Video|Resolution",
+                        "Video|Shader Mode",
+                        "Video|Shader Precision",
+                        "Video|VSync Mode",
+                };
+
+                final String[] ARR_KEYS={
+                        "Core|Libraries Control",
+                };
+
+                for(String key:BOOL_KEYS){
+                    String val_str=db_cfg.load_config_entry(key);
+                    if(val_str!=null){
+                        CheckBoxPreference pref=findPreference(key);
+                        config.save_config_entry(key,val_str);
+                        pref.setChecked(Boolean.parseBoolean(val_str));
+                        setup_pref_title_color(pref,val_str);
+                        setup_config_dependency(pref,val_str);
+
+                    }
+                }
+
+                for(String key:INT_KEYS){
+                    String val_str=db_cfg.load_config_entry(key);
+                    if(val_str!=null){
+                        SeekBarPreference pref=findPreference(key);
+                        config.save_config_entry(key,val_str);
+                        try {
+                            int val = Integer.parseInt(val_str);
+                            pref.setValue(val);
+                            setup_pref_title_color(pref,val_str);
+                            setup_config_dependency(pref,val_str);
+                        } catch (NumberFormatException e) {
+                            pref.setEnabled(false);
+                        }
+                    }
+                }
+
+                for(String key:STR_KEYS){
+                    String val_str=db_cfg.load_config_entry(key);
+                    if(val_str!=null){
+                        config.save_config_entry(key,val_str);
+                        ListPreference pref=findPreference(key);
+                        pref.setValue(val_str);
+                        setup_pref_title_color(pref,val_str);
+                        setup_config_dependency(pref,val_str);
+                    }
+                }
+
+                for(String key:ARR_KEYS){
+                    String[] val=db_cfg.load_config_entry_ty_arr(key);
+                    if(val!=null){
+                        config.save_config_entry_ty_arr(key,val);
+                    }
+                }
+
+                Toast.makeText(requireContext(),R.string.apply_recommended_config_success,Toast.LENGTH_SHORT).show();
+            }catch(Exception e){
+                Log.e("EmulatorSettings",e.toString());
+                Toast.makeText(requireContext(),R.string.apply_recommended_config_failed,Toast.LENGTH_SHORT).show();
+            }
+        }
+
         public void setPreferenceScreen(PreferenceScreen preferenceScreen){
             super.setPreferenceScreen(preferenceScreen);
             current_screen_key=preferenceScreen.getKey();
@@ -276,6 +431,7 @@ public class EmulatorSettings extends AppCompatActivity {
                 root_pref.addPreference(reset_as_default_pref(Application.get_global_config_file()));
             }
             else{
+                root_pref.addPreference(apply_database_config_pref());
                 root_pref.addPreference(reset_as_default_pref(new File(config_path)));
                 root_pref.addPreference(reset_as_global_pref());
             }

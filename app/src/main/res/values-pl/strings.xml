@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="apply_recommended_config">Zastosuj zalecaną konfigurację</string>
+    <string name="apply_recommended_config_confirm">Zastosować zalecaną konfigurację z bazy danych?</string>
+    <string name="apply_recommended_config_success">Zalecana konfiguracja została zastosowana</string>
+    <string name="apply_recommended_config_not_found">Nie znaleziono zalecanej konfiguracji dla tej gry</string>
+    <string name="apply_recommended_config_failed">Nie udało się zastosować zalecanej konfiguracji</string>
     <string name="patch_manager">Menedżer łatek</string>
     <string name="download_patch_table">Pobierz tabelę łatek</string>
     <string name="patch_downloaded_info">Plik łatki: patch.yml\nRozmiar: %s</string>
