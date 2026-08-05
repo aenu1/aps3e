@@ -3,7 +3,9 @@
 #include "VKRenderPass.h"
 #include "vkutils/device.h"
 #include "Utilities/Thread.h"
+#include "Utilities/File.h"
 
+#include "Emu/cache_utils.hpp"
 #include "util/sysinfo.hpp"
 
 namespace vk
@@ -12,6 +14,113 @@ namespace vk
 	std::unique_ptr<named_thread_group<pipe_compiler>> g_pipe_compilers;
 	int g_num_pipe_compilers = 0;
 	atomic_t<int> g_compiler_index{};
+
+	// Driver-level pipeline cache (SPIR-V -> native ISA), persisted to disk so the driver
+	// reuses its compilation across launches instead of recompiling cold every boot.
+	// Pipeline caches are internally synchronized for vkCreate*Pipelines, so worker threads
+	// share this handle without an extra lock. Defined here; the create calls live in
+	// VKProgramPipeline.cpp and reference it via an extern declaration.
+	VkPipelineCache g_pipeline_cache = VK_NULL_HANDLE;
+
+	static std::string get_pipeline_cache_path()
+	{
+		const std::string root = rpcs3::cache::get_ppu_cache();
+		return root.empty() ? std::string{} : root + "vk_pipeline_cache.bin";
+	}
+
+	static bool pipeline_cache_header_ok(const std::vector<u8>& data)
+	{
+		if (data.size() < 32)
+		{
+			return false;
+		}
+		u32 length = 0, version = 0;
+		std::memcpy(&length, data.data() + 0, sizeof(u32));
+		std::memcpy(&version, data.data() + 4, sizeof(u32));
+		return length >= 32 && length <= data.size() && version == VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
+	}
+
+	void load_pipeline_cache(const vk::render_device& dev)
+	{
+		std::vector<u8> data;
+		if (const std::string path = get_pipeline_cache_path(); !path.empty())
+		{
+			if (fs::file f{ path }; f)
+			{
+				data = f.to_vector<u8>();
+				if (!data.empty() && !pipeline_cache_header_ok(data))
+				{
+					rsx_log.warning("Discarding malformed Vulkan pipeline cache (%zu bytes)", data.size());
+					data.clear();
+				}
+			}
+		}
+
+		VkPipelineCacheCreateInfo info{};
+		info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+		info.initialDataSize = data.size();
+		info.pInitialData = data.empty() ? nullptr : data.data();
+
+		if (_vkCreatePipelineCache(dev, &info, nullptr, &g_pipeline_cache) != VK_SUCCESS)
+		{
+			g_pipeline_cache = VK_NULL_HANDLE;
+			rsx_log.error("Failed to create Vulkan pipeline cache; pipelines will be compiled without caching");
+			return;
+		}
+		if (!data.empty())
+		{
+			rsx_log.notice("Loaded Vulkan pipeline cache (%zu bytes)", data.size());
+		}
+	}
+
+	// Write the current cache to disk without destroying it. Safe to call mid-session
+	// (e.g. right after the startup compile burst) so the cache survives a later crash.
+	void flush_pipeline_cache(const vk::render_device& dev)
+	{
+		if (g_pipeline_cache == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
+		const std::string path = get_pipeline_cache_path();
+		if (path.empty())
+		{
+			return;
+		}
+
+		usz size = 0;
+		if (_vkGetPipelineCacheData(dev, g_pipeline_cache, &size, nullptr) != VK_SUCCESS || !size)
+		{
+			return;
+		}
+
+		std::vector<u8> data(size);
+		if (_vkGetPipelineCacheData(dev, g_pipeline_cache, &size, data.data()) != VK_SUCCESS)
+		{
+			return;
+		}
+		data.resize(size);
+
+		if (fs::pending_file file{ path }; file.file)
+		{
+			file.file.write(data.data(), data.size());
+			file.commit();
+			rsx_log.notice("Saved Vulkan pipeline cache (%zu bytes)", data.size());
+		}
+	}
+
+	void save_pipeline_cache(const vk::render_device& dev)
+	{
+		if (g_pipeline_cache == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
+		flush_pipeline_cache(dev);
+
+		_vkDestroyPipelineCache(dev, g_pipeline_cache, nullptr);
+		g_pipeline_cache = VK_NULL_HANDLE;
+	}
 
 	pipe_compiler::pipe_compiler()
 	{
@@ -257,6 +366,9 @@ namespace vk
 		ensure(num_worker_threads >= 1);
 		ensure(g_render_device); // "Cannot initialize pipe compiler before creating a logical device"
 
+		// Bring up the on-disk driver pipeline cache before any pipeline is built
+		load_pipeline_cache(*g_render_device);
+
 		// Create the thread pool
 		g_pipe_compilers = std::make_unique<named_thread_group<pipe_compiler>>("RSX.W", num_worker_threads);
 		g_num_pipe_compilers = num_worker_threads;
@@ -271,6 +383,12 @@ namespace vk
 	void destroy_pipe_compiler()
 	{
 		g_pipe_compilers.reset();
+
+		// Flush the accumulated driver pipeline cache to disk
+		if (g_pipeline_cache != VK_NULL_HANDLE && g_render_device)
+		{
+			save_pipeline_cache(*g_render_device);
+		}
 	}
 
 	pipe_compiler* get_pipe_compiler()

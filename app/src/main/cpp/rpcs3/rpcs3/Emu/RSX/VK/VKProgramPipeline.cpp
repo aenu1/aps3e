@@ -10,6 +10,9 @@
 
 namespace vk
 {
+	// Persistent driver pipeline cache (defined in VKPipelineCompiler.cpp)
+	extern VkPipelineCache g_pipeline_cache;
+
 	namespace glsl
 	{
 		using namespace ::glsl;
@@ -275,13 +278,13 @@ namespace vk
 			{
 				VkGraphicsPipelineCreateInfo create_info = *p_graphics_info;
 				create_info.layout = m_pipeline_layout;
-				CHECK_RESULT(_vkCreateGraphicsPipelines(m_device, nullptr, 1, &create_info, nullptr, &m_pipeline));
+				CHECK_RESULT(_vkCreateGraphicsPipelines(m_device, g_pipeline_cache, 1, &create_info, nullptr, &m_pipeline));
 			}
 			else
 			{
 				VkComputePipelineCreateInfo create_info = *p_compute_info;
 				create_info.layout = m_pipeline_layout;
-				CHECK_RESULT(_vkCreateComputePipelines(m_device, nullptr, 1, &create_info, nullptr, &m_pipeline));
+				CHECK_RESULT(_vkCreateComputePipelines(m_device, g_pipeline_cache, 1, &create_info, nullptr, &m_pipeline));
 			}
 
 			m_linked = true;

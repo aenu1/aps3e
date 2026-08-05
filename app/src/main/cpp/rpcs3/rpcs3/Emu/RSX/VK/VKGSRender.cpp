@@ -1241,6 +1241,11 @@ void VKGSRender::on_init_thread()
 		// TODO: Handle window resize messages during loading on GPUs without OUT_OF_DATE_KHR support
 		m_shaders_cache->load(&dlg);
 	}
+
+	// Persist the freshly-compiled startup pipeline set right away, so the driver cache
+	// survives even if the game later crashes before a clean teardown (the common case
+	// for DRM-spawn titles whose game renderer never reaches destroy_pipe_compiler).
+	vk::flush_pipeline_cache(*m_device);
 }
 
 void VKGSRender::on_exit()

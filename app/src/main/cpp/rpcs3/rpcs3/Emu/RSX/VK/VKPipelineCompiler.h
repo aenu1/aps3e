@@ -182,6 +182,10 @@ namespace vk
 	void initialize_pipe_compiler(int num_worker_threads = -1);
 	void destroy_pipe_compiler();
 	pipe_compiler* get_pipe_compiler();
+
+	// Persist the driver pipeline cache to disk WITHOUT destroying it (call after the
+	// startup compile burst so the cache survives a later gameplay crash).
+	void flush_pipeline_cache(const vk::render_device& dev);
 }
 
 namespace rpcs3
