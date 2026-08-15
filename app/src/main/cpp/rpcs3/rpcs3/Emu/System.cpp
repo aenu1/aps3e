@@ -1594,7 +1594,9 @@ game_boot_result Emulator::Load(const std::string& title_id, bool is_disc_patch,
 
 			launching_from_disc_archive = true;
 #if __ANDROID__
-            m_path_real = m_path;
+            //Android版 m_path 本身就是虚拟ISO路径(vfsv0),重启时继续使用 m_iso_fd 重新挂载,
+            //m_path_real 仅用于与 Windows 行为对齐(指向非虚拟路径),此处不能赋值为虚拟路径,
+            //否则 Emu.Restart 的 after_kill_callback 中 ensure(!m_path_real.starts_with(虚拟前缀)) 会失败
 #else
 			std::string path = iso_device::virtual_device_name + "/";
 
@@ -4226,6 +4228,7 @@ game_boot_result Emulator::Restart(bool graceful, bool reset_path)
 
 	Emu.after_kill_callback = [this, reset_path]
 	{
+#ifndef __ANDROID__
 		// Reset boot path in case of ISO
 		if (m_path.starts_with(iso_device::virtual_device_name))
 		{
@@ -4234,6 +4237,7 @@ game_boot_result Emulator::Restart(bool graceful, bool reset_path)
 			ensure(!m_path_real.starts_with(iso_device::virtual_device_name));
 			m_path = m_path_real;
 		}
+#endif
 
 		// If continuous mode changed the path, restart from the original executable
 		if (reset_path && !m_path_original.empty() && m_path_original != m_path)

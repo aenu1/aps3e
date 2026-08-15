@@ -28,13 +28,25 @@ void disable_display_sleep()
 {
 }
 #endif
+namespace ae{
+    bool is_main_thread();
+    void process_main_tasks();
+}
 extern void qt_events_aware_op(int repeat_duration_ms, std::function<bool()> wrapped_op)
 {
     ensure(wrapped_op);
 
+    const bool on_main=ae::is_main_thread();
+
     {
         while (!wrapped_op())
         {
+            //主线程没有独立事件循环,等待期间必须消费任务队列,
+            //否则投递到主线程的任务(如 Restart 收尾/继续开机)永远无法执行
+            if(on_main){
+                ae::process_main_tasks();
+            }
+
             if (repeat_duration_ms == 0)
             {
                 std::this_thread::yield();

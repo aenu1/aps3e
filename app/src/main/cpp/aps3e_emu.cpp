@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #include <atomic>
+#include <deque>
+#include <mutex>
 #include "aps3e_rp3_impl.h"
 #include "emulator.h"
 #include "emulator_aps3e.h"
@@ -33,43 +35,82 @@ namespace ae{
     };
 
     pthread_mutex_t key_event_mutex;
-
+    
     pthread_mutex_t emu_mutex;
     pthread_cond_t emu_cond;
-
+    
     int emu_status=-1;
-
-
-
+    
+    //主线程任务队列(等价于Qt版的主线程事件循环分发)
+    //rpcs3 内部大量使用 CallFromMainThread/BlockingCallFromMainThread 把任务投递到"主线程"执行,
+    //若在当前调用线程同步执行(旧实现),会导致在持有 pad::g_pad_mutex 等锁的线程(如 Overlay Input Thread)
+    //上同步执行 Emu.Restart/Stop,与其他线程互相等待造成死锁(Pad Thread too sleepy 卡死)。
+    std::thread::id main_thr_id;
+    std::mutex task_mutex;
+    std::deque<std::function<void()>> task_queue;
+    
+    bool is_main_thread(){
+        return std::this_thread::get_id()==main_thr_id;
+    }
+    
+    void process_main_tasks(){
+        while(true){
+            std::function<void()> task;
+            {
+                std::lock_guard<std::mutex> lock(task_mutex);
+                if(task_queue.empty())
+                    break;
+                task=std::move(task_queue.front());
+                task_queue.pop_front();
+            }
+            task();
+        }
+    }
+    
+    void run_on_main(std::function<void()> task){
+        if(is_main_thread()){
+            //与Qt同线程直接连接(AutoConnection)行为一致,避免主线程自我投递造成死锁
+            task();
+            return;
+        }
+        std::lock_guard<std::mutex> lock(task_mutex);
+        task_queue.push_back(std::move(task));
+    }
+    
     void init();
     bool boot_game();
-
+    
     void main_thr(){
-
-        std::string tid=[]{
+    
+        main_thr_id=std::this_thread::get_id();
+    
+        std::string tid=[] {
             std::stringstream ss;
             ss<<std::this_thread::get_id();
             return ss.str();
         }();
         LOGW("new thr: %s",tid.c_str());
         pthread_mutex_init(&key_event_mutex, NULL);
-
+    
         pthread_mutex_init(&emu_mutex, NULL);
         pthread_cond_init(&emu_cond, NULL);
-
+    
         init();
-
+    
         bool boot_ok=boot_game();
-
+    
         emu_status=STATUS_RUNNING;
         while (true){
-
+    
+            //处理投递到主线程的任务(Restart/Stop/Resume等)
+            process_main_tasks();
+    
             if (emu_status == STATUS_REQUEST_RESUME) {
                 pthread_mutex_lock(&emu_mutex);
                 Emu.Resume();
                 emu_status = STATUS_RUNNING;
                 pthread_cond_signal(&emu_cond);
-
+    
                 pthread_mutex_unlock(&emu_mutex);
             }
             if (emu_status == STATUS_REQUEST_PAUSE) {
@@ -82,6 +123,16 @@ namespace ae{
             if (emu_status == STATUS_REQUEST_STOP) {
                 pthread_mutex_lock(&emu_mutex);
                 if(boot_ok) Emu.Kill();
+                pthread_mutex_unlock(&emu_mutex);
+    
+                //持续消费主线程任务直到模拟完全停止(收尾任务在任务队列中执行)
+                while(!Emu.IsStopped(true)){
+                    process_main_tasks();
+                    usleep(1000);
+                }
+                process_main_tasks();
+    
+                pthread_mutex_lock(&emu_mutex);
                 emu_status = STATUS_STOPPED;
                 pthread_cond_signal(&emu_cond);
                 pthread_mutex_unlock(&emu_mutex);
@@ -90,7 +141,7 @@ namespace ae{
             }
             usleep(10);
         }
-
+    
         pthread_mutex_destroy(&key_event_mutex);
         pthread_mutex_destroy(&emu_mutex);
         pthread_cond_destroy(&emu_cond);
@@ -345,15 +396,16 @@ namespace ae{
         };
         callbacks.call_from_main_thread = [](std::function<void()> func, atomic_t<u32>* wake_up)
         {
-            PRE("call_from_main_thread");
-
-            func();
-
-            if (wake_up)
+            run_on_main([func=std::move(func),wake_up]()
             {
-                *wake_up = true;
-                wake_up->notify_one();
-            }
+                func();
+
+                if (wake_up)
+                {
+                    *wake_up = true;
+                    wake_up->notify_one();
+                }
+            });
         };
 
         callbacks.init_gs_render = [](utils::serial* ar)

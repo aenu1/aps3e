@@ -41,7 +41,7 @@ namespace rsx
 				rsx_log.notice("User selected resume in home menu");
 				return page_navigation::exit;
 			});
-#ifndef __ANDROID__
+#if 1
 			add_page(home_menu::fa_icon::settings, std::make_shared<home_menu_settings>(x, y, width, height, use_separators, this));
 
 			if (rsx::overlays::friends_list_dialog::rpcn_configured())

@@ -25,6 +25,40 @@
 	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG,__VA_ARGS__);\
 }
 
+static jstring make_jstring(JNIEnv* env, std::string_view sv){
+    //NewStringUTF要求合法Modified UTF-8,而SFO字段可能包含非UTF-8字节(如Shift-JIS标题),
+    //直接传入会触发 JNI DETECTED ERROR 导致SIGABRT,这里把非法字节替换为'?'
+    std::string s{sv};
+    for(size_t i=0;i<s.size();){
+        const unsigned char c=s[i];
+        int len=0;
+        if(c<0x80) len=1;
+        else if((c&0xE0)==0xC0&&c>=0xC2) len=2;
+        else if((c&0xF0)==0xE0) len=3;
+        else if((c&0xF8)==0xF0) len=4;
+
+        if(len==0||len>3||i+len>s.size()){
+            s[i]='?';
+            i++;
+            continue;
+        }
+        bool ok=true;
+        for(int k=1;k<len;k++){
+            if((static_cast<unsigned char>(s[i+k])&0xC0)!=0x80){
+                ok=false;
+                break;
+            }
+        }
+        if(!ok){
+            s[i]='?';
+            i++;
+            continue;
+        }
+        i+=len;
+    }
+    return env->NewStringUTF(s.c_str());
+}
+
 static jboolean j_install_firmware(JNIEnv* env,jobject self,jint pup_fd){
     //jboolean is_copy=false;
     //const char* path=env->GetStringUTFChars(pup_path,&is_copy);
@@ -123,10 +157,10 @@ static jobject j_meta_info_from_dir(JNIEnv* env,jobject self,jstring jdir_path){
     std::string v;
     env->SetObjectField(meta_info,fid_MetaInfo_eboot_path,env->NewStringUTF((v=fetch_eboot_path(dir_path)).c_str()));
     env->SetBooleanField(meta_info,fid_MetaInfo_decrypt,true);
-    env->SetObjectField(meta_info,fid_MetaInfo_name,env->NewStringUTF((v=psf::get_string(psf,"TITLE","")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_serial,env->NewStringUTF((v=psf::get_string(psf,"TITLE_ID","")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_category,env->NewStringUTF((v=psf::get_string(psf,"CATEGORY","??")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_version,env->NewStringUTF((v=psf::get_string(psf,"APP_VER","")).c_str()));
+    env->SetObjectField(meta_info,fid_MetaInfo_name,make_jstring(env,psf::get_string(psf,"TITLE","")));
+    env->SetObjectField(meta_info,fid_MetaInfo_serial,make_jstring(env,psf::get_string(psf,"TITLE_ID","")));
+    env->SetObjectField(meta_info,fid_MetaInfo_category,make_jstring(env,psf::get_string(psf,"CATEGORY","??")));
+    env->SetObjectField(meta_info,fid_MetaInfo_version,make_jstring(env,psf::get_string(psf,"APP_VER","")));
     env->SetIntField(meta_info,fid_MetaInfo_resolution,psf::get_integer(psf,"RESOLUTION",0));
     env->SetIntField(meta_info,fid_MetaInfo_sound_format,psf::get_integer(psf,"SOUND_FORMAT",0));
     return meta_info;
@@ -158,11 +192,10 @@ static jobject j_meta_info_from_iso(JNIEnv* env,jobject self,jint fd,jint dec_ke
 
     jobject meta_info=env->NewObject(cls_MetaInfo,mid_MetaInfo_ctor);
     env->SetObjectField(meta_info,fid_MetaInfo_iso_uri,jiso_uri_path);
-    std::string v;
-    env->SetObjectField(meta_info,fid_MetaInfo_name,env->NewStringUTF((v=psf::get_string(psf,"TITLE","")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_serial,env->NewStringUTF((v=psf::get_string(psf,"TITLE_ID","")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_category,env->NewStringUTF((v=psf::get_string(psf,"CATEGORY","??")).c_str()));
-    env->SetObjectField(meta_info,fid_MetaInfo_version,env->NewStringUTF((v=psf::get_string(psf,"APP_VER","")).c_str()));
+    env->SetObjectField(meta_info,fid_MetaInfo_name,make_jstring(env,psf::get_string(psf,"TITLE","")));
+    env->SetObjectField(meta_info,fid_MetaInfo_serial,make_jstring(env,psf::get_string(psf,"TITLE_ID","")));
+    env->SetObjectField(meta_info,fid_MetaInfo_category,make_jstring(env,psf::get_string(psf,"CATEGORY","??")));
+    env->SetObjectField(meta_info,fid_MetaInfo_version,make_jstring(env,psf::get_string(psf,"APP_VER","")));
     env->SetIntField(meta_info,fid_MetaInfo_resolution,psf::get_integer(psf,"RESOLUTION",0));
     env->SetIntField(meta_info,fid_MetaInfo_sound_format,psf::get_integer(psf,"SOUND_FORMAT",0));
 
