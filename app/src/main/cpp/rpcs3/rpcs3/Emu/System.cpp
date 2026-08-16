@@ -3884,9 +3884,16 @@ void Emulator::Kill(bool allow_autoexit, bool savestate, savestate_stage* save_s
 					const auto device = fs::get_virtual_device(iso_device::virtual_device_name + "/");
 					ensure(device);
 
-					const auto iso_dev = dynamic_cast<const iso_device*>(device.get());
-#ifndef __ANDROID__
+					// argv[0]: path inside the ISO. Must be written on ALL platforms so the
+					// savestate reader (argv, disc_info, klic, m_game_dir, hdd1) stays aligned.
 					ar(m_path.substr(iso_device::virtual_device_name.size() + 1));
+#ifdef __ANDROID__
+					// Android reloads the ISO through the retained fd (m_iso_fd), not a file path,
+					// so iso_device has no loaded-iso path. Still write a disc_info field (the title
+					// id, which does not start with '/') to keep the serialization stream aligned.
+					ar(m_title_id);
+#else
+					const auto iso_dev = dynamic_cast<const iso_device*>(device.get());
 					ar(iso_dev->get_loaded_iso());
 #endif
 				}
