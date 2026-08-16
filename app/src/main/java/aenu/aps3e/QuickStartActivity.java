@@ -99,6 +99,7 @@ public class QuickStartActivity extends AppCompatActivity {
         supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
 
         super.onCreate(savedInstanceState);
+        Utils.setup_system_bars_appearance(this);
 
         if(!Application.should_delay_load()){
             on_create();

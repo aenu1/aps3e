@@ -29,8 +29,23 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import android.content.res.Configuration;
 
 public class Utils {
+
+    /*
+     * targetSdk>=35 强制边到边(edge-to-edge)显示,状态栏/导航栏透明,
+     * 必须显式设置系统栏图标颜色,否则图标可能与窗口背景同色而不可见:
+     * 亮色主题(白色背景) -> 深色图标;暗色主题(深色背景) -> 浅色图标。
+     */
+    public static void setup_system_bars_appearance(Activity a){
+        Window w=a.getWindow();
+        WindowInsetsControllerCompat wic=WindowCompat.getInsetsController(w,w.getDecorView());
+        boolean is_night=(a.getResources().getConfiguration().uiMode
+                &Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
+        wic.setAppearanceLightStatusBars(!is_night);
+        wic.setAppearanceLightNavigationBars(!is_night);
+    }
 
     public static String getCurrentProcessName(Context context) {
         int pid = android.os.Process.myPid();

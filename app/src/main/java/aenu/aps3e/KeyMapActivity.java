@@ -44,6 +44,7 @@ public class KeyMapActivity extends AppCompatActivity {
 
 		supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
 		super.onCreate(bundle);
+		Utils.setup_system_bars_appearance(this);
 		sp=getSharedPreferences();
 		update_config();
 		setContentView(R.layout.activity_keymap);

@@ -1204,6 +1204,7 @@ public class EmulatorSettings extends AppCompatActivity {
         supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
 
         super.onCreate(savedInstanceState);
+        Utils.setup_system_bars_appearance(this);
         setContentView(R.layout.activity_emulator_settings);
 
         // 设置 Toolbar
