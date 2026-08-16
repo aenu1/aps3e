@@ -520,7 +520,18 @@ namespace ae{
             PRE("get_localized_u32string");
             return {}; };*/
         callbacks.get_localized_setting=[](const cfg::_base* setting, u32 index) -> std::string {
-            PRE("get_localized_setting");
+            // Return the raw value name of the enum entry. Qt translates these on
+            // desktop; on Android there is no Qt translation system, so fall back to
+            // the config value names (e.g. "Vulkan", "Auto"). Without this the
+            // home-menu dropdown (spinner-like) widgets render empty text.
+            if (setting)
+            {
+                const std::vector<std::string> list = setting->to_list();
+                if (index < list.size())
+                {
+                    return list[index];
+                }
+            }
             return "";
         };
 
