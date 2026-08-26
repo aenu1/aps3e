@@ -992,7 +992,11 @@ void spu_cache::initialize(bool build_existing_cache)
 			fmt::throw_exception("Unsupported spu decoder '%s'", g_cfg.core.spu_decoder);
 		}
 #elif defined(ARCH_ARM64)
-		if (g_cfg.core.spu_decoder == spu_decoder_type::llvm)
+        if (g_cfg.core.spu_decoder == spu_decoder_type::asmjit)
+        {
+            compiler = spu_recompiler_base::make_asmjit_recompiler();
+        }
+        else if (g_cfg.core.spu_decoder == spu_decoder_type::llvm)
 		{
 			compiler = spu_recompiler_base::make_llvm_recompiler();
 		}
@@ -3303,7 +3307,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 								break;
 							}
 						}
-						
+
 						if (is_good_conclusion)
 						{
 							jt_rel.clear();
@@ -5352,7 +5356,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 		}
 
 		const bool is_two_block_loop = targets_count == 1;
- 
+
 		invalid = invalid || !valid;
 		valid = false;
 
@@ -5560,8 +5564,8 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 
 				if (cause != 24)
 				{
-					atomic16->break_cause = cause; 
-					atomic16->break_pc = pos; 
+					atomic16->break_cause = cause;
+					atomic16->break_pc = pos;
 					return;
 				}
 
@@ -5725,7 +5729,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 
 				std::string block_dump;
 				this->dump(result, block_dump, previous.loop_pc, previous.loop_end + 1);
-	
+
 				spu_log.notice("SPU Block Dump:\n%s", block_dump);
 			}
 		};
@@ -6347,7 +6351,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 			{
 				std::swap(ra, rc);
 			}
-							
+
 			for (u32 reg : {ra, rb, rc})
 			{
 				if (reg != s_reg_max)
@@ -6721,15 +6725,15 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 
 					pattern_ok1 = false;
 					break;
-				}	
 				}
-	
+				}
+
 				if (!pattern_ok1)
 				{
 					break_reduced_loop_pattern(9, reduced_loop->discard());
 					break;
 				}
-	
+
 				if (reg->modified >= 2)
 				{
 					switch (reg->mod2_type)
@@ -6799,7 +6803,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 					{
 						pattern_ok1 = false;
 						break;
-					}	
+					}
 					}
 				}
 
@@ -6975,7 +6979,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 							break;
 						}
 
-						reduced_loop->cond_val_incr_before_cond = cond_val_incr_before_cond; 
+						reduced_loop->cond_val_incr_before_cond = cond_val_incr_before_cond;
 
 						u64 cmp_mask = 0;
 						compare_direction cmp_direction{};
@@ -7079,7 +7083,7 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 							}
 
 							const auto cmp_optype = reg->reverse1_type() == spu_itype::XSBH ? reg->reverse2_type() : reg->reverse1_type();
-							
+
 							switch (cmp_optype)
 							{
 							case spu_itype::CEQ:
@@ -7348,13 +7352,13 @@ spu_program spu_recompiler_base::analyse(const be_t<u32>* ls, u32 entry_point, s
 			// Do nothing
 			break;
 		}
-		
+
 		case spu_itype::MTSPR:
 		{
 			break_all_patterns(99);
 			break;
 		}
-	
+
 		case spu_itype::WRCH:
 		{
 			break_channel_pattern(56, rchcnt_loop->discard());

@@ -221,3 +221,25 @@ if(BUILD_RPCS3_TESTS)
      )
     endif()
 endif()
+
+#return()
+
+# SPU ASMJIT standalone test (no GTest dependency)
+add_executable(spu_asmjit_test
+    Emu/Cell/SPUASMJITTest.cpp
+)
+
+target_link_libraries(spu_asmjit_test
+    PRIVATE
+        rpcs3_emu
+)
+
+target_include_directories(spu_asmjit_test
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+if(USE_PRECOMPILED_HEADERS)
+    target_precompile_headers(spu_asmjit_test PRIVATE stdafx.h)
+endif()

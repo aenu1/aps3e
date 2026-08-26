@@ -16,11 +16,21 @@
 #include <cmath>
 #include <thread>
 
+#ifdef ARCH_X64
 #define SPU_OFF_128(x, ...) asmjit::x86::oword_ptr(*cpu, offset32(&spu_thread::x, ##__VA_ARGS__))
 #define SPU_OFF_64(x, ...) asmjit::x86::qword_ptr(*cpu, offset32(&spu_thread::x, ##__VA_ARGS__))
 #define SPU_OFF_32(x, ...) asmjit::x86::dword_ptr(*cpu, offset32(&spu_thread::x, ##__VA_ARGS__))
 #define SPU_OFF_16(x, ...) asmjit::x86::word_ptr(*cpu, offset32(&spu_thread::x, ##__VA_ARGS__))
 #define SPU_OFF_8(x, ...) asmjit::x86::byte_ptr(*cpu, offset32(&spu_thread::x, ##__VA_ARGS__))
+#elif defined(ARCH_ARM64)
+#define SPU_OFF_128(x, ...) asmjit::arm::Mem(*cpu, static_cast<int32_t>(offset32(&spu_thread::x, ##__VA_ARGS__)))
+#define SPU_OFF_64(x, ...) asmjit::arm::Mem(*cpu, static_cast<int32_t>(offset32(&spu_thread::x, ##__VA_ARGS__)))
+#define SPU_OFF_32(x, ...) asmjit::arm::Mem(*cpu, static_cast<int32_t>(offset32(&spu_thread::x, ##__VA_ARGS__)))
+#define SPU_OFF_16(x, ...) asmjit::arm::Mem(*cpu, static_cast<int32_t>(offset32(&spu_thread::x, ##__VA_ARGS__)))
+#define SPU_OFF_8(x, ...) asmjit::arm::Mem(*cpu, static_cast<int32_t>(offset32(&spu_thread::x, ##__VA_ARGS__)))
+#endif
+
+
 
 const spu_decoder<spu_recompiler> s_spu_decoder;
 
@@ -98,11 +108,15 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 
 	CodeHolder code;
 	code.init(m_asmrt.environment());
-
+#ifdef ARCH_X64
 	x86::Assembler compiler(&code);
 	compiler.addEncodingOptions(EncodingOptions::kOptimizedAlign);
 	this->c = &compiler;
-
+#elif defined(ARCH_ARM64)
+    a64::Assembler compiler(&code);
+    compiler.addEncodingOptions(EncodingOptions::kOptimizedAlign);
+    this->c = &compiler;
+#endif
 	if (g_cfg.core.spu_debug && !add_loc->logged.exchange(1))
 	{
 		// Dump analyser data
@@ -112,7 +126,7 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		// Set logger
 		code.setLogger(&logger);
 	}
-
+#if ARCH_X64
 	// Initialize args
 	this->cpu = &x86::r13;
 	this->ls = &x86::rbp;
@@ -132,7 +146,28 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 	this->qw0 = &x86::rdx;
 	this->qw1 = &x86::rcx;
 #endif
+#elif defined(ARCH_ARM64)
+    this->cpu = &a64::x19;
+	this->ls = &a64::x20;
+	this->rip = &a64::x22;
+	this->pc0 = &a64::x21;
+	this->addr = &a64::x9;
+	this->arg0 = &a64::x0;
+	this->arg1 = &a64::x1;
+	this->qw0 = &a64::x10;
+	this->qw1 = &a64::x11;
 
+	// Prologue: save callee-saved registers and the link register (48 bytes, 16-byte aligned)
+	// x30 must be preserved across any blr issued inside the generated code, otherwise
+	// the final ret would jump back into the middle of this function.
+	c->sub(a64::sp, a64::sp, asmjit::Imm(48));
+	c->stp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+	c->stp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+	c->str(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+#endif
+
+
+#if ARCH_X64
 	const std::array<const x86::Xmm*, 16> vec_vars
 	{
 		&x86::xmm0,
@@ -152,7 +187,44 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		&x86::xmm14,
 		&x86::xmm15,
 	};
+#elif defined(ARCH_ARM64)
+    const std::array<const a64::VecV*, 32> vec_vars
+    {
+        &a64::v0,
+        &a64::v1,
+        &a64::v2,
+        &a64::v3,
+        &a64::v4,
+        &a64::v5,
+        &a64::v6,
+        &a64::v7,
+        &a64::v8,
+        &a64::v9,
+        &a64::v10,
+        &a64::v11,
+        &a64::v12,
+        &a64::v13,
+        &a64::v14,
+        &a64::v15,
+        &a64::v16,
+        &a64::v17,
+        &a64::v18,
+        &a64::v19,
+        &a64::v20,
+        &a64::v21,
+        &a64::v22,
+        &a64::v23,
+        &a64::v24,
+        &a64::v25,
+        &a64::v26,
+        &a64::v27,
+        &a64::v28,
+        &a64::v29,
+        &a64::v30,
+        &a64::v31,
+    };
 
+#endif
 	for (u32 i = 0; i < vec_vars.size(); i++)
 	{
 		vec[i] = vec_vars[i];
@@ -180,16 +252,28 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		}
 	}
 
+#if ARCH_X64
 	// Load actual PC and check status
 	c->sub(x86::rsp, 0x28);
 	c->mov(pc0->r32(), SPU_OFF_32(pc));
 	c->cmp(SPU_OFF_32(state), 0);
 	c->jnz(label_stop);
-
-	if ((g_cfg.core.spu_prof || g_cfg.core.spu_debug) && g_cfg.core.spu_verification)
-	{
+#elif defined(ARCH_ARM64)
+	// Load actual PC and check state
+	c->ldr(pc0->w(), SPU_OFF_32(pc));
+	c->ldr(qw0->w(), SPU_OFF_32(state));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(label_stop);
+#endif
+    if ((g_cfg.core.spu_prof || g_cfg.core.spu_debug) && g_cfg.core.spu_verification)
+    {
+#if ARCH_X64
 		c->mov(x86::rax, m_hash_start & -0xffff);
 		c->mov(SPU_OFF_64(block_hash), x86::rax);
+#elif defined(ARCH_ARM64)
+		c->mov(*qw0, asmjit::Imm(m_hash_start & -0xffff));
+		c->str(*qw0, SPU_OFF_64(block_hash));
+#endif
 	}
 
 	if (utils::has_avx())
@@ -235,6 +319,7 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 
 	auto get_pc_ptr = [&]()
 	{
+#if ARCH_X64
 		// Get data start address
 		if (starta != m_base)
 		{
@@ -246,18 +331,29 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		{
 			return x86::qword_ptr(*ls, *pc0);
 		}
+#elif defined(ARCH_ARM64)
+		// Compute LS pointer: qw0 = ls + (starta & 0x3fffc)
+		c->mov(*qw0, asmjit::Imm(starta & 0x3fffc));
+		c->add(*qw0, *ls, *qw0);
+		return asmjit::arm::Mem(*qw0);
+#endif
 	};
 
 	if (!g_cfg.core.spu_verification)
 	{
+#if ARCH_X64
 		// Disable check (unsafe)
 		if (utils::has_avx())
 		{
 			c->vzeroupper();
 		}
+#elif defined(ARCH_ARM64)
+		// Nothing needed on ARM64 (no vzeroupper equivalent)
+#endif
 	}
 	else if (m_size == 8)
 	{
+#if ARCH_X64
 		c->mov(x86::rax, static_cast<u64>(func.data[1]) << 32 | func.data[0]);
 		c->cmp(x86::rax, x86::qword_ptr(*ls, *pc0));
 		c->jnz(label_diff);
@@ -266,9 +362,17 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		{
 			c->vzeroupper();
 		}
+#elif defined(ARCH_ARM64)
+		// Load expected 8 bytes and compare
+		c->mov(*qw0, asmjit::Imm(static_cast<u64>(func.data[1]) << 32 | func.data[0]));
+		c->ldr(*qw1, asmjit::arm::Mem(*ls, *pc0));
+		c->cmp(*qw0, *qw1);
+		c->b_ne(label_diff);
+#endif
 	}
 	else if (m_size == 4)
 	{
+#if ARCH_X64
 		c->cmp(x86::dword_ptr(*ls, *pc0), func.data[0]);
 		c->jnz(label_diff);
 
@@ -276,7 +380,15 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 		{
 			c->vzeroupper();
 		}
+#elif defined(ARCH_ARM64)
+		// Load expected 4 bytes and compare
+		c->mov(addr->w(), asmjit::Imm(func.data[0]));
+		c->ldr(*qw0, asmjit::arm::Mem(*ls, *pc0));
+		c->cmp(addr->w(), qw0->w());
+		c->b_ne(label_diff);
+#endif
 	}
+#if ARCH_X64
 	else if (utils::has_avx512() && false)
 	{
 		// AVX-512 optimized check using 512-bit registers (disabled)
@@ -621,8 +733,10 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 
 		c->vzeroupper();
 	}
+#endif
 	else
 	{
+#if ARCH_X64
 		if (utils::has_avx())
 		{
 			c->vzeroupper();
@@ -749,22 +863,133 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 			c->test(x86::rax, x86::rax);
 			c->jne(label_diff);
 		}
+#elif defined(ARCH_ARM64)
+		// NEON code verification (SSE2 equivalent)
+		words_align = 16;
+
+		// Initialize pointers: qw0 = LS + starta, qw1 = code data
+		c->mov(*qw0, asmjit::Imm(starta & 0x3fffc));
+		c->add(*qw0, *ls, *qw0);
+		c->adr(*qw1, label_code);
+
+		u32 code_off = 0;
+		u32 ls_off = starta;
+
+		const auto& v_acc0 = *vec[0];
+		const auto& v_tmp = *vec[2];
+		const auto& v_idx = *vec[3];
+		const auto& v_exp = *vec[4];
+
+		c->eor(v_acc0.b16(), v_acc0.b16(), v_acc0.b16());
+
+		for (u32 j = starta; j < end; j += 16)
+		{
+			const u32 cmask = get_code_mask(j, j + 16);
+
+			if (cmask == 0) [[unlikely]]
+			{
+				continue;
+			}
+
+			// Advance LS pointer to keep the offset encodable
+			if (j - ls_off >= 256)
+			{
+				c->add(*qw0, *qw0, asmjit::Imm(j - ls_off));
+				ls_off = j;
+			}
+
+			// Advance code pointer if needed
+			if (code_off >= 256)
+			{
+				c->add(*qw1, *qw1, asmjit::Imm(code_off));
+				code_off = 0;
+			}
+
+			// Load 128-bit from LS
+			c->ldr(v_tmp, asmjit::arm::Mem(*qw0, j - ls_off));
+
+			if (cmask != 0xf)
+			{
+				// Byte shuffle to fill holes (equivalent to pshufd): holes repeat highest valid word
+				u8 idx_bytes[16];
+				const u32 highest = 31 - std::countl_zero(cmask);
+				for (u32 w = 0; w < 4; w++)
+				{
+					const u32 src = (cmask & (1u << w)) ? w : highest;
+					for (u32 b = 0; b < 4; b++)
+						idx_bytes[w * 4 + b] = src * 4 + b;
+				}
+
+				// Load shuffle indices into v_idx via addr as temp (qw0 must be preserved as LS pointer)
+				u64 lo = 0, hi = 0;
+				for (u32 i = 0; i < 8; i++) lo |= u64(idx_bytes[i]) << (i * 8);
+				for (u32 i = 0; i < 8; i++) hi |= u64(idx_bytes[8 + i]) << (i * 8);
+
+				c->mov(*addr, asmjit::Imm(lo));
+				c->fmov(v_idx.d(), *addr);
+				c->mov(*addr, asmjit::Imm(hi));
+				c->ins(v_idx.d(1), *addr);
+				c->tbl(v_tmp.b16(), v_tmp.b16(), v_idx.b16());
+			}
+
+			// XOR with expected code data and accumulate
+			c->ldr(v_exp, asmjit::arm::Mem(*qw1, code_off));
+			c->eor(v_tmp.b16(), v_tmp.b16(), v_exp.b16());
+			c->orr(v_acc0.b16(), v_acc0.b16(), v_tmp.b16());
+
+			// Push expected words
+			const u32 w3 = ::at32(func.data, (j - start + ~static_cast<u32>(std::countl_zero(cmask)) % 4 * 4) / 4);
+			words.push_back(cmask & 1 ? func.data[(j - start + 0) / 4] : w3);
+			words.push_back(cmask & 2 ? func.data[(j - start + 4) / 4] : w3);
+			words.push_back(cmask & 4 ? func.data[(j - start + 8) / 4] : w3);
+			words.push_back(w3);
+
+			code_off += 16;
+		}
+
+		// Test if accumulated result is non-zero
+		// cmeq v_tmp.16b, v_acc0.16b, #0 -> 0xFF where byte==0, 0x00 otherwise
+		c->cmeq(v_tmp.b16(), v_acc0.b16(), asmjit::Imm(0));
+		// uminv: if all bytes in v_tmp are 0xFF (all acc0 bytes were 0), min==0xFF
+		c->uminv(v_exp.b16(), v_tmp.b16());
+		c->umov(qw0->w(), v_exp.b(0));
+		c->cmp(qw0->w(), asmjit::Imm(0xff));
+		c->b_ne(label_diff);
+#endif
 	}
 
 	// Acknowledge success and add statistics
+#if ARCH_X64
 	c->add(SPU_OFF_64(block_counter), ::size32(words) / (words_align / 4));
+#elif defined(ARCH_ARM64)
+	{
+		const u32 inc_val = ::size32(words) / (words_align / 4);
+		c->ldr(*qw0, SPU_OFF_64(block_counter));
+		c->add(*qw0, *qw0, asmjit::Imm(inc_val));
+		c->str(*qw0, SPU_OFF_64(block_counter));
+	}
+#endif
 
 	// Set block hash for profiling (if enabled)
 	if (g_cfg.core.spu_prof || g_cfg.core.spu_debug)
 	{
+#if ARCH_X64
 		c->mov(x86::rax, m_hash_start | 0xffff);
 		c->mov(SPU_OFF_64(block_hash), x86::rax);
+#elif defined(ARCH_ARM64)
+		c->mov(*qw0, asmjit::Imm(m_hash_start | 0xffff));
+		c->str(*qw0, SPU_OFF_64(block_hash));
+#endif
 	}
 
 	if (m_pos != start)
 	{
 		// Jump to the entry point if necessary
+#if ARCH_X64
 		c->jmp(instr_labels[m_pos]);
+#elif defined(ARCH_ARM64)
+		c->b(instr_labels[m_pos]);
+#endif
 		m_pos = -1;
 	}
 
@@ -830,17 +1055,37 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 	// Simply return
 	c->align(AlignMode::kCode, 16);
 	c->bind(label_stop);
+#if ARCH_X64
 	c->add(x86::rsp, 0x28);
 	c->ret();
+#elif defined(ARCH_ARM64)
+	c->ldr(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+	c->ldp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+	c->ldp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+	c->add(a64::sp, a64::sp, asmjit::Imm(48));
+	c->ret(a64::x30);
+#endif
 
 	if (g_cfg.core.spu_verification)
 	{
 		// Dispatch
 		c->align(AlignMode::kCode, 16);
 		c->bind(label_diff);
+#if ARCH_X64
 		c->inc(SPU_OFF_64(block_failure));
 		c->add(x86::rsp, 0x28);
 		c->jmp(spu_runtime::tr_dispatch);
+#elif defined(ARCH_ARM64)
+		c->ldr(*qw0, SPU_OFF_64(block_failure));
+		c->add(*qw0, *qw0, asmjit::Imm(1));
+		c->str(*qw0, SPU_OFF_64(block_failure));
+		c->ldr(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+		c->ldp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+		c->ldp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+		c->add(a64::sp, a64::sp, asmjit::Imm(48));
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(spu_runtime::tr_dispatch)));
+		c->br(*qw0);
+#endif
 	}
 
 	for (auto&& work : ::as_rvalue(std::move(after)))
@@ -875,9 +1120,13 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 
 	c->align(AlignMode::kData, words_align);
 	c->bind(label_code);
+#if ARCH_X64
 	for (u32 d : words)
 		c->dd(d);
-
+#elif defined(ARCH_ARM64)
+	for (u32 d : words)
+		c->embedUInt32(d);
+#endif
 	for (auto&& work : ::as_rvalue(std::move(consts)))
 	{
 		work();
@@ -886,7 +1135,11 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 	label_stop.reset();
 	instr_table.reset();
 	instr_labels.clear();
+#ifdef ARCH_X64
 	xmm_consts.clear();
+#elif defined(ARCH_ARM64)
+	v_consts.clear();
+#endif
 
 	// Compile and get function address
 	spu_function_t fn = reinterpret_cast<spu_function_t>(m_asmrt._add(&code));
@@ -928,6 +1181,7 @@ spu_function_t spu_recompiler::compile(spu_program&& _func)
 	return fn;
 }
 
+#ifdef ARCH_X64
 spu_recompiler::XmmLink spu_recompiler::XmmAlloc() // get empty xmm register
 {
 	for (auto& v : vec)
@@ -978,6 +1232,64 @@ inline asmjit::x86::Mem spu_recompiler::get_pc(u32 addr)
 {
 	return asmjit::x86::qword_ptr(*pc0, addr - m_base);
 }
+#elif defined(ARCH_ARM64)
+
+
+spu_recompiler::VLink spu_recompiler::VAlloc()
+{
+	for (auto& v : vec)
+	{
+		if (v) return { v };
+	}
+
+	fmt::throw_exception("Out of Vec Vars");
+}
+
+spu_recompiler::VLink spu_recompiler::VGet(s8 reg, VType type)
+{
+	VLink result = VAlloc();
+
+	switch (type)
+	{
+	case VType::Int: c->ldr(result, SPU_OFF_128(gpr, reg)); break;
+	case VType::Float: c->ldr(result, SPU_OFF_128(gpr, reg)); break;
+	case VType::Double: c->ldr(result, SPU_OFF_128(gpr, reg)); break;
+	default: fmt::throw_exception("Invalid VType");
+	}
+
+	return result;
+}
+
+inline asmjit::a64::Mem spu_recompiler::VConst(const v128& data)
+{
+	// Embed the 128-bit constant in the code buffer (deferred, emitted after the
+	// function, mirroring the x86 XmmConst approach) and reference it via a label.
+	const auto key = std::make_pair(data._u64[0], data._u64[1]);
+
+	auto& label = v_consts[key];
+
+	if (!label.isValid())
+	{
+		label = c->newLabel();
+
+		consts.emplace_back([=, this]
+		{
+			c->align(asmjit::AlignMode::kData, 16);
+			c->bind(label);
+			c->embedUInt64(data._u64[0]);
+			c->embedUInt64(data._u64[1]);
+		});
+	}
+
+	return asmjit::a64::ptr(label);
+}
+
+inline asmjit::a64::Mem spu_recompiler::get_pc(u32 addr)
+{
+	return asmjit::a64::ptr(*pc0, addr - m_base);
+}
+
+#endif
 
 static void check_state(spu_thread* _spu)
 {
@@ -991,6 +1303,7 @@ void spu_recompiler::branch_fixed(u32 target, bool absolute)
 {
 	using namespace asmjit;
 
+#if ARCH_X64
 	// Check local branch
 	const auto local = instr_labels.find(target);
 
@@ -1050,12 +1363,83 @@ void spu_recompiler::branch_fixed(u32 target, bool absolute)
 	{
 		c->jmp(label_stop);
 	}
+#elif defined(ARCH_ARM64)
+	const auto local = instr_labels.find(target);
+
+	if (local != instr_labels.end() && local->second.isValid())
+	{
+		Label fail;
+
+		if (absolute)
+		{
+			fail = c->newLabel();
+			c->cmp(pc0->w(), asmjit::Imm(m_base));
+			c->b_ne(fail);
+		}
+
+		c->ldr(qw0->w(), SPU_OFF_32(state));
+		c->cmp(qw0->w(), asmjit::Imm(0));
+		c->b_eq(local->second);
+		c->mov(*addr, asmjit::Imm(target - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->mov(*arg0, *cpu);
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(&check_state)));
+		c->blr(*qw0);
+		c->b(local->second);
+
+		if (absolute)
+		{
+			c->bind(fail);
+		}
+		else
+		{
+			return;
+		}
+	}
+
+	const auto ppptr = !g_cfg.core.spu_verification ? nullptr : m_spurt->make_branch_patchpoint();
+
+	if (absolute)
+	{
+		c->mov(*addr, asmjit::Imm(target));
+		c->str(addr->w(), SPU_OFF_32(pc));
+	}
+	else
+	{
+		c->mov(*addr, asmjit::Imm(target - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+	}
+
+	c->eor(*rip, *rip, *rip);
+	c->ldr(qw0->w(), SPU_OFF_32(state));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(label_stop);
+
+	if (ppptr)
+	{
+		c->ldr(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+		c->ldp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+		c->ldp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+		c->add(a64::sp, a64::sp, asmjit::Imm(48));
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(ppptr)));
+		c->br(*qw0);
+	}
+	else
+	{
+		c->b(label_stop);
+	}
+#endif
 }
 
 void spu_recompiler::branch_indirect(spu_opcode_t op, bool jt, bool ret)
 {
 	using namespace asmjit;
 
+#if ARCH_X64
 	// Initialize third arg to zero
 	c->xor_(rip->r32(), rip->r32());
 
@@ -1162,12 +1546,132 @@ void spu_recompiler::branch_indirect(spu_opcode_t op, bool jt, bool ret)
 	{
 		c->jmp(label_stop);
 	}
+#elif defined(ARCH_ARM64)
+	c->eor(*rip, *rip, *rip);
+
+	if (op.d)
+	{
+		c->mov(*qw0, asmjit::Imm(0));
+		c->strb(qw0->w(), SPU_OFF_8(interrupts_enabled));
+	}
+	else if (op.e)
+	{
+		Label no_intr = c->newLabel();
+		Label intr = c->newLabel();
+		Label fail = c->newLabel();
+
+		c->ldr(*qw1, SPU_OFF_64(ch_events));
+		c->ror(*qw1, *qw1, asmjit::Imm(32));
+		c->mov(*qw0, asmjit::Imm(~static_cast<u32>(SPU_EVENT_INTR_IMPLEMENTED)));
+		c->tst(qw1->w(), qw0->w());
+		c->ror(*qw1, *qw1, asmjit::Imm(32));
+		c->b_ne(fail);
+		c->mov(*qw0, asmjit::Imm(1));
+		c->strb(qw0->w(), SPU_OFF_8(interrupts_enabled));
+		c->tst(qw1->w(), asmjit::Imm(1u << 31));
+		c->b_ne(intr);
+		c->b(no_intr);
+		c->bind(fail);
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->mov(*arg0, *cpu);
+		auto _throw = [](spu_thread* _spu)
+		{
+			_spu->state += cpu_flag::dbg_pause;
+			spu_log.fatal("SPU Interrupts not implemented (mask=0x%x)", +_spu->ch_events.load().mask);
+			spu_runtime::g_escape(_spu);
+		};
+		// Restore frame before the tail call (never returns, escapes to the gateway)
+		c->ldr(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+		c->ldp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+		c->ldp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+		c->add(a64::sp, a64::sp, asmjit::Imm(48));
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(+static_cast<void(*)(spu_thread*)>(_throw))));
+		c->br(*qw0);
+
+		c->bind(intr);
+		c->mov(*qw0, asmjit::Imm(0));
+		c->strb(qw0->w(), SPU_OFF_8(interrupts_enabled));
+		c->str(addr->w(), SPU_OFF_32(srr0));
+
+		// Test for BR/BRA instructions (they are equivalent at zero pc)
+		c->ldr(addr->w(), asmjit::arm::Mem(*ls));
+		c->and_(addr->w(), addr->w(), asmjit::Imm(0xfffffffd));
+		c->eor(addr->w(), addr->w(), asmjit::Imm(0x30));
+		c->rev(addr->w(), addr->w());
+		c->tst(addr->w(), asmjit::Imm(0xff80007f));
+		c->csel(*addr, *rip, *addr, asmjit::Imm(static_cast<uint32_t>(asmjit::arm::CondCode::kNE)));
+		c->lsr(*addr, *addr, asmjit::Imm(5));
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(no_intr);
+	}
+
+	c->str(addr->w(), SPU_OFF_32(pc));
+	c->ldr(qw0->w(), SPU_OFF_32(state));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(label_stop);
+
+	if (g_cfg.core.spu_block_size != spu_block_size_type::safe && ret)
+	{
+		Label fail = c->newLabel();
+		c->ldr(qw1->w(), SPU_OFF_32(gpr, 1, &v128::_u32, 3));
+		c->and_(qw1->w(), qw1->w(), asmjit::Imm(0x3fff0));
+		c->add(*qw1, *cpu, *qw1);
+		c->add(*qw1, *qw1, asmjit::Imm(::offset32(&spu_thread::stack_mirror)));
+		c->ldr(*qw0, asmjit::arm::Mem(*qw1, 8));
+		c->cmp(qw0->w(), addr->w());
+		c->b_ne(fail);
+		c->ldr(pc0->w(), asmjit::arm::Mem(*qw1, 12));
+		c->ldr(*qw0, asmjit::arm::Mem(*qw1));
+		c->br(*qw0);
+		c->bind(fail);
+	}
+
+	if (jt || g_cfg.core.spu_block_size == spu_block_size_type::giga)
+	{
+		if (!instr_table.isValid())
+		{
+			instr_table = c->newLabel();
+		}
+
+		const u32 start = instr_labels.begin()->first;
+		const u32 end = instr_labels.rbegin()->first + 4;
+
+		ensure(start == m_base);
+		Label fail = c->newLabel();
+		c->mov(qw1->w(), addr->w());
+		c->sub(qw1->w(), qw1->w(), pc0->w());
+		c->cmp(qw1->w(), asmjit::Imm(end - start));
+		c->b_hs(fail);
+		c->adr(*qw0, instr_table);
+		c->lsl(*qw1, *qw1, asmjit::Imm(1)); c->add(*qw0, *qw0, *qw1);
+		c->ldr(*qw0, asmjit::arm::Mem(*qw0));
+		c->br(*qw0);
+		c->bind(fail);
+	}
+
+	const auto ppptr = !g_cfg.core.spu_verification ? nullptr : m_spurt->make_branch_patchpoint();
+
+	if (ppptr)
+	{
+		c->ldr(a64::x30, asmjit::arm::Mem(a64::sp, 32));
+		c->ldp(a64::x21, a64::x22, asmjit::arm::Mem(a64::sp, 16));
+		c->ldp(a64::x19, a64::x20, asmjit::arm::Mem(a64::sp));
+		c->add(a64::sp, a64::sp, asmjit::Imm(48));
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(ppptr)));
+		c->br(*qw0);
+	}
+	else
+	{
+		c->b(label_stop);
+	}
+#endif
 }
 
 void spu_recompiler::branch_set_link(u32 target)
 {
 	using namespace asmjit;
 
+#if ARCH_X64
 	if (g_cfg.core.spu_block_size != spu_block_size_type::safe)
 	{
 		// Find instruction at target
@@ -1201,14 +1705,63 @@ void spu_recompiler::branch_set_link(u32 target)
 				// Set block hash for profiling (if enabled)
 				if (g_cfg.core.spu_prof || g_cfg.core.spu_debug)
 				{
+		#if ARCH_X64
 					c->mov(x86::rax, m_hash_start | 0xffff);
 					c->mov(SPU_OFF_64(block_hash), x86::rax);
+		#elif defined(ARCH_ARM64)
+					c->mov(*qw0, asmjit::Imm(m_hash_start | 0xffff));
+					c->str(*qw0, SPU_OFF_64(block_hash));
+		#endif
 				}
 
 				c->jmp(target);
 			});
 		}
 	}
+#elif defined(ARCH_ARM64)
+	if (g_cfg.core.spu_block_size != spu_block_size_type::safe)
+	{
+		const auto local = instr_labels.find(target);
+
+		if (local != instr_labels.end() && local->second.isValid())
+		{
+			Label ret = c->newLabel();
+
+			c->ldr(qw1->w(), SPU_OFF_32(gpr, 1, &v128::_u32, 3));
+			c->and_(qw1->w(), qw1->w(), asmjit::Imm(0x3fff0));
+			c->add(*qw1, *cpu, *qw1);
+			c->add(*qw1, *qw1, asmjit::Imm(::offset32(&spu_thread::stack_mirror)));
+			c->adr(*qw0, ret);
+			c->str(*qw0, asmjit::arm::Mem(*qw1, 0));
+			c->mov(*qw0, asmjit::Imm(target - m_base));
+			c->add(qw0->w(), qw0->w(), pc0->w());
+			c->and_(qw0->w(), qw0->w(), asmjit::Imm(0x3fffc));
+			c->str(qw0->w(), asmjit::arm::Mem(*qw1, 8));
+			c->str(pc0->w(), asmjit::arm::Mem(*qw1, 12));
+
+			after.emplace_back([=, this, target = local->second]
+			{
+				c->align(asmjit::AlignMode::kCode, 16);
+				c->bind(ret);
+				c->ldr(qw1->w(), SPU_OFF_32(gpr, 1, &v128::_u32, 3));
+				c->and_(qw1->w(), qw1->w(), asmjit::Imm(0x3fff0));
+				c->add(*qw1, *cpu, *qw1);
+				c->add(*qw1, *qw1, asmjit::Imm(::offset32(&spu_thread::stack_mirror)));
+				c->mov(*qw0, asmjit::Imm(~0ull));
+				c->str(*qw0, asmjit::arm::Mem(*qw1, 0));
+				c->str(*qw0, asmjit::arm::Mem(*qw1, 8));
+
+				if (g_cfg.core.spu_prof || g_cfg.core.spu_debug)
+				{
+					c->mov(*qw0, asmjit::Imm(m_hash_start | 0xffff));
+					c->str(*qw0, SPU_OFF_64(block_hash));
+				}
+
+				c->b(target);
+			});
+		}
+	}
+#endif
 }
 
 void spu_recompiler::fall(spu_opcode_t op)
@@ -1223,6 +1776,7 @@ void spu_recompiler::fall(spu_opcode_t op)
 		}
 	};
 
+#if ARCH_X64
 	c->lea(addr->r64(), get_pc(m_pos));
 	c->and_(*addr, 0x3fffc);
 	c->mov(SPU_OFF_32(pc), *addr);
@@ -1230,8 +1784,114 @@ void spu_recompiler::fall(spu_opcode_t op)
 	c->mov(*qw0, g_fxo->get<spu_interpreter_rt>().decode(op.opcode));
 	c->mov(*arg0, *cpu);
 	c->call(+gate);
+#elif defined(ARCH_ARM64)
+	c->mov(*addr, asmjit::Imm(m_pos - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+	c->str(addr->w(), SPU_OFF_32(pc));
+	c->mov(arg1->w(), asmjit::Imm(op.opcode));
+	c->mov(asmjit::a64::x2, asmjit::Imm(reinterpret_cast<u64>(g_fxo->get<spu_interpreter_rt>().decode(op.opcode))));
+	c->mov(*arg0, *cpu);
+	c->mov(*qw1, asmjit::Imm(reinterpret_cast<u64>(+gate)));
+	c->blr(*qw1);
+#endif
 }
 
+#ifdef ARCH_ARM64
+// Diagnostic helper: log halt operands right before the halt magic write
+static void spu_halt_diag(spu_thread* _spu, u32 opcode)
+{
+	const spu_opcode_t op{opcode};
+
+	const u8* ls8 = _spu->ls;
+
+	spu_log.error("HALT DIAG: pc=0x%05x op=0x%08x ra=%u ra[3]=0x%08x si10=%d",
+		_spu->pc, opcode, static_cast<u32>(op.ra), _spu->gpr[op.ra]._u32[3], static_cast<s32>(op.si10));
+
+	// Dump the full register chain involved in the SPURS kernel check
+	for (u32 i : {3u, 5u, 8u, 9u, 10u, 11u})
+	{
+		const v128& r = _spu->gpr[i];
+		spu_log.error("HALT DIAG: r%u = [%08x %08x %08x %08x]", i, r._u32[3], r._u32[2], r._u32[1], r._u32[0]);
+	}
+
+	spu_log.error("HALT DIAG: LS[0x1c0..0x1cf] = %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",
+		ls8[0x1c0], ls8[0x1c1], ls8[0x1c2], ls8[0x1c3], ls8[0x1c4], ls8[0x1c5], ls8[0x1c6], ls8[0x1c7],
+		ls8[0x1c8], ls8[0x1c9], ls8[0x1ca], ls8[0x1cb], ls8[0x1cc], ls8[0x1cd], ls8[0x1ce], ls8[0x1cf]);
+}
+
+// Emitted by halt instructions: set pc, log diagnostics, then do the magic write
+void spu_recompiler::a64_halt_body(asmjit::Label label, spu_opcode_t op)
+{
+	after.emplace_back([=, this, pos = m_pos]
+	{
+		c->bind(label);
+		c->mov(*addr, asmjit::Imm(pos - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->mov(*arg0, *cpu);
+		c->mov(arg1->w(), asmjit::Imm(op.opcode));
+		c->mov(*qw1, asmjit::Imm(reinterpret_cast<u64>(+spu_halt_diag)));
+		c->blr(*qw1);
+		c->mov(*qw0, asmjit::Imm(reinterpret_cast<u64>(vm::base(0xffdead00))));
+		c->mov(qw1->w(), asmjit::Imm("HALT"_u32));
+		c->str(qw1->w(), asmjit::arm::Mem(*qw0));
+		c->b(label_stop);
+	});
+}
+#endif
+
+#ifdef ARCH_ARM64
+// MFC command diagnostic: log full command and source registers before processing
+static void spu_mfc_diag(spu_thread* _spu)
+{
+	const auto& c = _spu->ch_mfc_cmd;
+	spu_log.error("MFC DIAG: pc=0x%05x cmd=%u lsa=0x%05x eal=0x%08x eah=0x%08x size=0x%04x tag=%u",
+		_spu->pc, static_cast<u32>(c.cmd), c.lsa, c.eal, c.eah, static_cast<u32>(c.size), static_cast<u32>(c.tag));
+	for (u32 i = 0; i < 128; i++)
+	{
+		const v128& r = _spu->gpr[i];
+		spu_log.error("MFC DIAG: r%u = [%08x %08x %08x %08x]", i, r._u32[3], r._u32[2], r._u32[1], r._u32[0]);
+	}
+	const u32* ls32 = reinterpret_cast<const u32*>(_spu->ls);
+	for (u32 a = 0x0; a < 0x800; a += 16)
+	{
+		spu_log.error("MFC DIAG: LS[%05x] = %08x %08x %08x %08x", a, ls32[a / 4], ls32[a / 4 + 1], ls32[a / 4 + 2], ls32[a / 4 + 3]);
+	}
+}
+
+// MFC field-write trace: log channel field writes with source value and pc,
+// plus a full register file dump to compare memory contents at write time.
+static void spu_mfc_wtrace(spu_thread* _spu, u32 chrt, u32 value, u32 wpc)
+{
+	const u32 ch = chrt & 0xff, rt = chrt >> 8;
+	spu_log.error("MFC WTRACE: pc=0x%05x ch=%u rt=%u val=0x%08x", wpc, ch, rt, value);
+	for (u32 i = 0; i < 128; i++)
+	{
+		const v128& r = _spu->gpr[i];
+		if (r._u32[0] | r._u32[1] | r._u32[2] | r._u32[3])
+			spu_log.error("MFC WTDUMP: r%u = [%08x %08x %08x %08x]", i, r._u32[3], r._u32[2], r._u32[1], r._u32[0]);
+	}
+}
+
+// Read gpr[rt]._u32[3] from memory in C++ (workaround probe for suspected
+// misencoded JIT ldr reading wrong values from the correct address).
+static u32 spu_mfc_rdreg(spu_thread* _spu, u32 rt)
+{
+	return _spu->gpr[rt]._u32[3];
+}
+#endif
+
+#ifdef ARCH_X64
+static void spu_mfc_wtrace_x(spu_thread* _spu, u32 chrt, u32 value, u32 wpc)
+{
+	const u32 ch = chrt & 0xff, rt = chrt >> 8;
+	spu_log.error("MFC WTRACEX: pc=0x%05x ch=%u rt=%u val=0x%08x", wpc, ch, rt, value);
+}
+#endif
+
+#ifdef ARCH_X64
 void spu_recompiler::UNK(spu_opcode_t op)
 {
 	auto gate = [](spu_thread* _spu, u32 op)
@@ -1865,14 +2525,14 @@ void spu_recompiler::ROTH(spu_opcode_t op) //nf
 {
 	const XmmLink& va = XmmGet(op.ra, XmmType::Int);
 	const XmmLink& vb = XmmGet(op.rb, XmmType::Int);
-	
+
 	if (utils::has_avx512_icl())
 	{
 		c->vpshldvw(va, va, vb);
 		c->vmovdqa(SPU_OFF_128(gpr, op.rt), va);
 		return;
 	}
-	
+
 	if (utils::has_avx512())
 	{
 		const XmmLink& vt = XmmAlloc();
@@ -3668,7 +4328,7 @@ void spu_recompiler::FCMGT(spu_opcode_t op)
 	c->pxor(v1, v1);
 	c->cmpps(v0, va, 3 /* isNaN */);
 	c->cmpps(v1, vb, 3);
-	
+
 	c->movaps(vt, XmmConst(v128::from32p(0x7fffffff)));
 	c->andps(va, vt);
 	c->andps(vb, vt);
@@ -4931,3 +5591,2477 @@ void spu_recompiler::FMS(spu_opcode_t op)
 	c->subps(va, SPU_OFF_128(gpr, op.rc));
 	c->movaps(SPU_OFF_128(gpr, op.rt4), va);
 }
+
+#elif defined(ARCH_ARM64)
+
+void spu_recompiler::UNK(spu_opcode_t op)
+{
+	fall(op);
+
+	// Unknown/illegal instruction must not fall through to the next instruction,
+	// return to the main loop instead (matches the x86 recompiler behavior).
+	c->b(label_stop);
+	m_pos = -1;
+}
+
+void spu_recompiler::STOP(spu_opcode_t op)
+{
+	fall(op);
+
+	// STOP must return to the main loop (like the x86 recompiler's jmp label_stop),
+	// otherwise execution continues into the next instruction.
+	if (g_cfg.core.spu_block_size == spu_block_size_type::safe)
+	{
+		c->b(label_stop);
+		m_pos = -1;
+	}
+}
+
+void spu_recompiler::LNOP(spu_opcode_t op)
+{
+	// Load NOP
+}
+
+void spu_recompiler::SYNC(spu_opcode_t op)
+{
+	c->dmb(asmjit::Imm(0xBu));
+	if (g_cfg.core.spu_block_size == spu_block_size_type::safe)
+	{
+		c->mov(*addr, asmjit::Imm(m_pos + 4 - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->b(label_stop);
+		m_pos = -1;
+	}
+}
+
+void spu_recompiler::DSYNC(spu_opcode_t op)
+{
+	c->dmb(asmjit::Imm(0xBu));
+}
+
+void spu_recompiler::MFSPR(spu_opcode_t op)
+{
+	const VLink& vr = VAlloc();
+	c->eor(vr.b16(), vr.b16(), vr.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+static u32 spu_rdch(spu_thread* _spu, u32 ch)
+{
+	const s64 result = _spu->get_ch_value(ch);
+
+	if (result < 0 || _spu->state & cpu_flag::again)
+	{
+		spu_runtime::g_escape(_spu);
+	}
+
+	if (_spu->test_stopped())
+	{
+		_spu->pc += 4;
+		spu_runtime::g_escape(_spu);
+	}
+
+	return static_cast<u32>(result & 0xffffffff);
+}
+
+void spu_recompiler::RDCH(spu_opcode_t op)
+{
+	using namespace asmjit;
+
+	auto read_channel = [&](u32 ch_off, bool sync = true)
+	{
+		Label wait = c->newLabel();
+		Label again = c->newLabel();
+		Label ret = c->newLabel();
+		c->add(*qw1, *cpu, Imm(static_cast<int32_t>(ch_off)));
+		c->align(AlignMode::kCode, 16);
+		c->bind(again);
+		c->ldaxr(*qw0, arm::Mem(*qw1));
+		c->mov(a64::x14, *qw0); // save original word (value | count<<off), returned as result like x64 (addr holds it)
+		c->lsr(qw0->x(), qw0->x(), Imm(spu_channel::off_count));
+		c->cbz(qw0->w(), wait);
+
+		after.emplace_back([=, this, pos = m_pos]
+		{
+			c->bind(wait);
+			c->mov(*addr, Imm(pos - m_base));
+			c->add(*addr, *pc0, *addr);
+			c->and_(*addr, *addr, Imm(0x3fffc));
+			c->str(addr->w(), SPU_OFF_32(pc));
+			c->mov(arg1->w(), Imm(+op.ra));
+			c->mov(*arg0, *cpu);
+			c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_rdch)));
+			c->blr(*qw1);
+			c->b(ret);
+		});
+
+		if (sync)
+		{
+			// Consume the channel value (write zero) atomically
+			c->mov(a64::x12, Imm(0));
+			c->stlxr(a64::x13, a64::x12, arm::Mem(*qw1));
+			c->cbnz(a64::x13, again);
+		}
+		else
+		{
+			// Just write zero
+			c->mov(*qw0, Imm(0));
+			c->str(*qw0, arm::Mem(*qw1));
+		}
+
+		c->mov(*arg0, a64::x14); // fast path result = consumed channel value (low word)
+		c->bind(ret);
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ins(vt.s(3), arg0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+	};
+
+	switch (op.ra)
+	{
+	case SPU_RdSRR0:
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ldr(qw0->w(), SPU_OFF_32(srr0));
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	case MFC_RdTagStat:
+	{
+		read_channel(::offset32(&spu_thread::ch_tag_stat), false);
+		return;
+	}
+	case MFC_RdTagMask:
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ldr(qw0->w(), SPU_OFF_32(ch_tag_mask));
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	case SPU_RdSigNotify1:
+	{
+		read_channel(::offset32(&spu_thread::ch_snr1));
+		return;
+	}
+	case SPU_RdSigNotify2:
+	{
+		read_channel(::offset32(&spu_thread::ch_snr2));
+		return;
+	}
+	case MFC_RdAtomicStat:
+	{
+		read_channel(::offset32(&spu_thread::ch_atomic_stat), false);
+		return;
+	}
+	case MFC_RdListStallStat:
+	{
+		read_channel(::offset32(&spu_thread::ch_stall_stat), false);
+		return;
+	}
+	case SPU_RdDec:
+	{
+		auto sub1 = [](spu_thread* _spu, v128* _res)
+		{
+			const u32 out = _spu->ch_dec_value - static_cast<u32>(get_timebased_time() - _spu->ch_dec_start_timestamp);
+
+			if (out > 1500)
+			{
+				_spu->state += cpu_flag::wait;
+				std::this_thread::yield();
+
+				if (_spu->test_stopped())
+				{
+					_spu->pc += 4;
+					spu_runtime::g_escape(_spu);
+				}
+			}
+
+			*_res = v128::from32r(out);
+		};
+
+		auto sub2 = [](spu_thread* _spu, v128* _res)
+		{
+			const u32 out = _spu->read_dec().first;
+
+			*_res = v128::from32r(out);
+		};
+
+		c->mov(*addr, Imm(m_pos - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->add(*arg1, *cpu, Imm(::offset32(&spu_thread::gpr, op.rt)));
+		c->mov(*arg0, *cpu);
+		c->mov(*qw1, Imm(reinterpret_cast<u64>(g_cfg.core.spu_loop_detection ? +sub1 : +sub2)));
+		c->blr(*qw1);
+		return;
+	}
+	case SPU_RdEventMask:
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ldr(*qw0, SPU_OFF_64(ch_events));
+		c->lsr(qw0->x(), qw0->x(), Imm(32));
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	case SPU_RdEventStat:
+	{
+		fall(op); // TODO (matches the x86 recompiler)
+		return;
+	}
+	case SPU_RdMachStat:
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ldrb(qw0->w(), SPU_OFF_8(interrupts_enabled));
+		c->ldr(qw1->w(), SPU_OFF_32(thread_type));
+		c->and_(qw1->w(), qw1->w(), Imm(2));
+		c->orr(qw0->w(), qw0->w(), qw1->w());
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	default: break;
+	}
+
+	// Generic blocking read
+	c->mov(*addr, Imm(m_pos - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, Imm(0x3fffc));
+	c->str(addr->w(), SPU_OFF_32(pc));
+	c->mov(arg1->w(), Imm(+op.ra));
+	c->mov(*arg0, *cpu);
+	c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_rdch)));
+	c->blr(*qw1);
+	const VLink& vt = VAlloc();
+	c->eor(vt.b16(), vt.b16(), vt.b16());
+	c->ins(vt.s(3), arg0->w());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+static u32 spu_rchcnt(spu_thread* _spu, u32 ch)
+{
+	return _spu->get_ch_count(ch);
+}
+
+void spu_recompiler::RCHCNT(spu_opcode_t op)
+{
+	using namespace asmjit;
+
+	auto ch_cnt = [&](u32 ch_off, bool inv = false)
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->ldr(*qw0, arm::Mem(*cpu, static_cast<int32_t>(ch_off)));
+		c->lsr(qw0->x(), qw0->x(), Imm(spu_channel::off_count));
+		c->and_(qw0->w(), qw0->w(), Imm(1));
+		if (inv)
+			c->eor(qw0->w(), qw0->w(), Imm(1));
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+	};
+
+	auto cnt_imm = [&](u32 v)
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->mov(qw0->w(), Imm(v));
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+	};
+
+	switch (op.ra)
+	{
+	case SPU_WrOutMbox:       return ch_cnt(::offset32(&spu_thread::ch_out_mbox), true);
+	case SPU_WrOutIntrMbox:   return ch_cnt(::offset32(&spu_thread::ch_out_intr_mbox), true);
+	case MFC_RdTagStat:       return ch_cnt(::offset32(&spu_thread::ch_tag_stat));
+	case MFC_RdListStallStat: return ch_cnt(::offset32(&spu_thread::ch_stall_stat));
+	case SPU_RdSigNotify1:    return ch_cnt(::offset32(&spu_thread::ch_snr1));
+	case SPU_RdSigNotify2:    return ch_cnt(::offset32(&spu_thread::ch_snr2));
+	case MFC_RdAtomicStat:    return ch_cnt(::offset32(&spu_thread::ch_atomic_stat));
+
+	case MFC_WrTagUpdate:
+	{
+		cnt_imm(1);
+		return;
+	}
+
+	case MFC_Cmd:
+	{
+		const VLink& vt = VAlloc();
+		c->eor(vt.b16(), vt.b16(), vt.b16());
+		c->mov(qw0->w(), Imm(16));
+		c->ldr(qw1->w(), SPU_OFF_32(mfc_size));
+		c->sub(qw0->w(), qw0->w(), qw1->w());
+		c->ins(vt.s(3), qw0->w());
+		c->str(vt, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+
+	// Channels with a constant count of 1:
+	case SPU_WrEventMask:
+	case SPU_WrEventAck:
+	case SPU_WrDec:
+	case SPU_RdDec:
+	case SPU_RdEventMask:
+	case SPU_RdMachStat:
+	case SPU_WrSRR0:
+	case SPU_RdSRR0:
+	case SPU_Set_Bkmk_Tag:
+	case SPU_PM_Start_Ev:
+	case SPU_PM_Stop_Ev:
+	case MFC_RdTagMask:
+	case MFC_LSA:
+	case MFC_EAH:
+	case MFC_EAL:
+	case MFC_Size:
+	case MFC_TagID:
+	case MFC_WrTagMask:
+	case MFC_WrListStallAck:
+	{
+		cnt_imm(1);
+		return;
+	}
+	default: break;
+	}
+
+	// Generic (non-blocking)
+	c->mov(*addr, Imm(m_pos - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, Imm(0x3fffc));
+	c->str(addr->w(), SPU_OFF_32(pc));
+	c->mov(arg1->w(), Imm(+op.ra));
+	c->mov(*arg0, *cpu);
+	c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_rchcnt)));
+	c->blr(*qw1);
+	const VLink& vt = VAlloc();
+	c->eor(vt.b16(), vt.b16(), vt.b16());
+	c->ins(vt.s(3), arg0->w());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SF(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->sub(vb.s4(), vb.s4(), va.s4());
+	c->str(vb, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::OR(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->orr(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::BG(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vi = VAlloc();
+	c->cmhs(vi.s4(), vb.s4(), va.s4());
+	const asmjit::a64::VecV& vc_t0 = VAlloc();
+	c->ldr(vc_t0, VConst(v128::from32p(1)));
+	c->and_(vi.b16(), vi.b16(), vc_t0.b16());
+	// Actually: BG = (ra > rb unsigned) ? 0 : 1 = carry from (rb - ra)
+	// cmhs: va >= vb unsigned, but we need rb >= ra unsigned
+	// Let me redo: result = (rb >= ra) ? 1 : 0
+	c->cmhs(vi.s4(), vb.s4(), va.s4());
+	const asmjit::a64::VecV& vc_t1 = VAlloc();
+	c->ldr(vc_t1, VConst(v128::from32p(1)));
+	c->and_(vi.b16(), vi.b16(), vc_t1.b16());
+	c->str(vi, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SFH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->sub(vb.h8(), vb.h8(), va.h8());
+	c->str(vb, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::NOR(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->orr(va.b16(), va.b16(), vb.b16());
+	c->mvn(va.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ABSDB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vm = VAlloc();
+	c->mov(vm.b16(), va.b16());
+	c->umax(va.b16(), va.b16(), vb.b16());
+	c->umin(vb.b16(), vb.b16(), vm.b16());
+	c->sub(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROT(spu_opcode_t op)
+{
+	// rt = rotl(ra, rb) = (ra << rb) | (ra >> (32 - rb))
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VAlloc();
+	const VLink& vm = VAlloc();
+	const asmjit::a64::VecV& vc_t2 = VAlloc();
+	c->ldr(vc_t2, VConst(v128::from32p(0x1f)));
+	c->and_(vb.b16(), vb.b16(), vc_t2.b16());
+	c->ushl(vt.s4(), va.s4(), vb.s4());
+	const asmjit::a64::VecV& vc_t3 = VAlloc();
+	c->ldr(vc_t3, VConst(v128::from32p(32)));
+	c->sub(vm.s4(), vb.s4(), vc_t3.s4());  // vm = rb - 32 (negative => right shift)
+	c->ushl(va.s4(), va.s4(), vm.s4());    // va = ra >> (32 - rb)
+	c->orr(va.b16(), vt.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTM(spu_opcode_t op)
+{
+	// rt = ra >> ((-rb) & 0x3f)  (32-bit logical shift, count wraps to 0-63)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vs = VAlloc();
+	const asmjit::a64::VecV& vc_t4 = VAlloc();
+	c->ldr(vc_t4, VConst(v128::from32p(0x3f)));
+	c->neg(vs.s4(), vb.s4());              // vs = -rb
+	c->and_(vs.b16(), vs.b16(), vc_t4.b16()); // vs = (-rb) & 0x3f
+	c->neg(vs.s4(), vs.s4());              // vs = -((-rb) & 0x3f)
+	c->ushl(va.s4(), va.s4(), vs.s4());    // va >> ((-rb) & 0x3f)
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTMA(spu_opcode_t op)
+{
+	// rt = (s32)ra >> ((-rb) & 0x3f)  (32-bit arithmetic shift)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vs = VAlloc();
+	const asmjit::a64::VecV& vc_t6 = VAlloc();
+	c->ldr(vc_t6, VConst(v128::from32p(0x3f)));
+	c->neg(vs.s4(), vb.s4());              // vs = -rb
+	c->and_(vs.b16(), vs.b16(), vc_t6.b16()); // vs = (-rb) & 0x3f
+	c->neg(vs.s4(), vs.s4());              // vs = -((-rb) & 0x3f)
+	c->sshl(va.s4(), va.s4(), vs.s4());    // arithmetic right shift
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SHL(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const asmjit::a64::VecV& vc_t9 = VAlloc();
+	c->ldr(vc_t9, VConst(v128::from32p(0x3f)));
+	c->and_(vb.b16(), vb.b16(), vc_t9.b16());
+	c->ushl(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTH(spu_opcode_t op)
+{
+	// rt = rothl(ra, rb) = (ra << rb) | (ra >> (16 - rb))
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VAlloc();
+	const VLink& vm = VAlloc();
+	const asmjit::a64::VecV& vc_t10 = VAlloc();
+	c->ldr(vc_t10, VConst(v128::from16p(0xf)));
+	c->and_(vb.b16(), vb.b16(), vc_t10.b16());
+	c->ushl(vt.h8(), va.h8(), vb.h8());
+	const asmjit::a64::VecV& vc_t11 = VAlloc();
+	c->ldr(vc_t11, VConst(v128::from16p(16)));
+	c->sub(vm.h8(), vb.h8(), vc_t11.h8()); // vm = rb - 16 (negative => right shift)
+	c->ushl(va.h8(), va.h8(), vm.h8());    // va = ra >> (16 - rb)
+	c->orr(va.b16(), vt.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTHM(spu_opcode_t op)
+{
+	// rt = ra >> ((-rb) & 0x1f)  (16-bit logical shift)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vs = VAlloc();
+	const asmjit::a64::VecV& vc_t12 = VAlloc();
+	c->ldr(vc_t12, VConst(v128::from16p(0x1f)));
+	c->neg(vs.h8(), vb.h8());              // vs = -rb
+	c->and_(vs.b16(), vs.b16(), vc_t12.b16()); // vs = (-rb) & 0x1f
+	c->neg(vs.h8(), vs.h8());              // vs = -((-rb) & 0x1f)
+	c->ushl(va.h8(), va.h8(), vs.h8());    // va >> ((-rb) & 0x1f)
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTMAH(spu_opcode_t op)
+{
+	// rt = (s16)ra >> ((-rb) & 0x1f)  (16-bit arithmetic shift)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vs = VAlloc();
+	const asmjit::a64::VecV& vc_t14 = VAlloc();
+	c->ldr(vc_t14, VConst(v128::from16p(0x1f)));
+	c->neg(vs.h8(), vb.h8());              // vs = -rb
+	c->and_(vs.b16(), vs.b16(), vc_t14.b16()); // vs = (-rb) & 0x1f
+	c->neg(vs.h8(), vs.h8());              // vs = -((-rb) & 0x1f)
+	c->sshl(va.h8(), va.h8(), vs.h8());    // arithmetic right shift
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SHLH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const asmjit::a64::VecV& vc_t17 = VAlloc();
+	c->ldr(vc_t17, VConst(v128::from16p(0x1f)));
+	c->and_(vb.b16(), vb.b16(), vc_t17.b16());
+	c->ushl(va.h8(), va.h8(), vb.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTI(spu_opcode_t op)
+{
+	const u32 sh = op.i7 & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	const VLink& vt = VAlloc();
+	c->shl(vt.s4(), va.s4(), asmjit::Imm(sh));
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(32 - sh));
+	c->orr(va.b16(), vt.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTMI(spu_opcode_t op)
+{
+	const u32 sh = (0 - op.i7) & 0x3f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh >= 32) { c->eor(va.b16(), va.b16(), va.b16()); c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(sh));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTMAI(spu_opcode_t op)
+{
+	const u32 sh = (0 - op.i7) & 0x3f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	const u32 clamped = sh > 31 ? 31 : sh;
+	if (clamped == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->sshr(va.s4(), va.s4(), asmjit::Imm(clamped));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SHLI(spu_opcode_t op)
+{
+	const u32 sh = op.i7 & 0x3f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh >= 32) { c->eor(va.b16(), va.b16(), va.b16()); c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->shl(va.s4(), va.s4(), asmjit::Imm(sh));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTHI(spu_opcode_t op)
+{
+	const u32 sh = op.i7 & 0xf;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	const VLink& vt = VAlloc();
+	c->shl(vt.h8(), va.h8(), asmjit::Imm(sh));
+	c->ushr(va.h8(), va.h8(), asmjit::Imm(16 - sh));
+	c->orr(va.b16(), vt.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTHMI(spu_opcode_t op)
+{
+	const u32 sh = (0 - op.i7) & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh >= 16) { c->eor(va.b16(), va.b16(), va.b16()); c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->ushr(va.h8(), va.h8(), asmjit::Imm(sh));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTMAHI(spu_opcode_t op)
+{
+	const u32 sh = (0 - op.i7) & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	const u32 clamped = sh > 15 ? 15 : sh;
+	if (clamped == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->sshr(va.h8(), va.h8(), asmjit::Imm(clamped));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SHLHI(spu_opcode_t op)
+{
+	const u32 sh = op.i7 & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (sh >= 16) { c->eor(va.b16(), va.b16(), va.b16()); c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	if (sh == 0) { c->str(va, SPU_OFF_128(gpr, op.rt)); return; }
+	c->shl(va.h8(), va.h8(), asmjit::Imm(sh));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::A(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->add(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::AND(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->and_(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CG(spu_opcode_t op)
+{
+	// rt = carry(ra + rb) 锟?{0, 1}
+	// carry = ((ra ^ 0x80000000) > ((ra + rb) ^ 0x80000000)) signed
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VAlloc();
+	const asmjit::a64::VecV& vc = VAlloc();
+	c->ldr(vc, VConst(v128::from32p(0x80000000)));
+	c->add(vt.s4(), vb.s4(), va.s4());   // vt = ra + rb
+	c->eor(va.b16(), va.b16(), vc.b16());   // va = ra ^ 0x80000000
+	c->eor(vt.b16(), vt.b16(), vc.b16());   // vt = (ra+rb) ^ 0x80000000
+	c->cmgt(va.s4(), va.s4(), vt.s4());  // va = (va > vt) signed
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(31));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::AH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->add(va.h8(), va.h8(), vb.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::NAND(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->and_(va.b16(), va.b16(), vb.b16());
+	c->mvn(va.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::AVGB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->urhadd(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MTSPR(spu_opcode_t op)
+{
+	// Move to SPR - no-op (SPR not readable)
+}
+static void spu_wrch(spu_thread* _spu, u32 ch, u32 value)
+{
+	if (!_spu->set_ch_value(ch, value) || _spu->state & cpu_flag::again)
+	{
+		spu_runtime::g_escape(_spu);
+	}
+
+	if (_spu->test_stopped())
+	{
+		_spu->pc += 4;
+		spu_runtime::g_escape(_spu);
+	}
+}
+
+static void spu_wrch_mfc(spu_thread* _spu)
+{
+	if (!_spu->process_mfc_cmd() || _spu->state & cpu_flag::again)
+	{
+		spu_runtime::g_escape(_spu);
+	}
+
+	if (_spu->test_stopped())
+	{
+		_spu->pc += 4;
+		spu_runtime::g_escape(_spu);
+	}
+}
+void spu_recompiler::WRCH(spu_opcode_t op)
+{
+	using namespace asmjit;
+
+	switch (op.ra)
+	{
+	case SPU_WrSRR0:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->and_(*addr, *addr, Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(srr0));
+		return;
+	}
+	case SPU_WrOutIntrMbox:
+	{
+		// Can't seemingly be optimized
+		break;
+	}
+	case SPU_WrOutMbox:
+	{
+		Label wait = c->newLabel();
+		Label again = c->newLabel();
+		Label ret = c->newLabel();
+		c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->add(*qw1, *cpu, Imm(static_cast<int32_t>(::offset32(&spu_thread::ch_out_mbox))));
+		c->align(AlignMode::kCode, 16);
+		c->bind(again);
+		c->ldaxr(a64::x12, arm::Mem(*qw1));
+		c->lsr(a64::x12, a64::x12, Imm(spu_channel::off_count));
+		c->cbnz(a64::x12, wait);
+
+		after.emplace_back([=, this, pos = m_pos]
+		{
+			c->bind(wait);
+			c->mov(*addr, Imm(pos - m_base));
+			c->add(*addr, *pc0, *addr);
+			c->and_(*addr, *addr, Imm(0x3fffc));
+			c->str(addr->w(), SPU_OFF_32(pc));
+			c->mov(arg1->w(), Imm(+op.ra));
+			// ARM64: qw0(x10) is NOT arg2; reload the value explicitly (x64 hides it in r8)
+			c->ldr(asmjit::a64::x2.w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+			c->mov(*arg0, *cpu);
+			c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch)));
+			c->blr(*qw1);
+			c->b(ret);
+		});
+
+		c->mov(a64::x12, Imm(u64{1} << spu_channel::off_count));
+		c->orr(qw0->x(), qw0->x(), a64::x12);
+		c->stlxr(a64::x12, *qw0, arm::Mem(*qw1));
+		c->cbnz(a64::x12, again);
+		c->bind(ret);
+		return;
+	}
+	case MFC_WrTagMask:
+	{
+		Label upd = c->newLabel();
+		Label ret = c->newLabel();
+		c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->str(qw0->w(), SPU_OFF_32(ch_tag_mask));
+		c->ldrb(qw1->w(), SPU_OFF_8(ch_tag_upd));
+		c->cmp(qw1->w(), Imm(MFC_TAG_UPDATE_IMMEDIATE));
+		c->b_ne(upd);
+
+		after.emplace_back([=, this, pos = m_pos]
+		{
+			c->bind(upd);
+			c->mov(*addr, Imm(pos - m_base));
+			c->add(*addr, *pc0, *addr);
+			c->and_(*addr, *addr, Imm(0x3fffc));
+			c->str(addr->w(), SPU_OFF_32(pc));
+			c->mov(arg1->w(), Imm(MFC_WrTagMask));
+			c->ldr(asmjit::a64::x2.w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+			c->mov(*arg0, *cpu);
+			c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch)));
+			c->blr(*qw1);
+			c->b(ret);
+		});
+
+		c->bind(ret);
+		return;
+	}
+	case MFC_WrTagUpdate:
+	{
+		Label fail = c->newLabel();
+		Label ret = c->newLabel();
+		c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->cmp(qw0->w(), Imm(2));
+		c->b_hi(fail);
+
+		after.emplace_back([=, this, pos = m_pos]
+		{
+			c->bind(fail);
+			c->mov(*addr, Imm(pos - m_base));
+			c->add(*addr, *pc0, *addr);
+			c->and_(*addr, *addr, Imm(0x3fffc));
+			c->str(addr->w(), SPU_OFF_32(pc));
+			c->mov(arg1->w(), Imm(+op.ra));
+			// ARM64: qw0(x10) is NOT arg2; on x64 qw0==r8==arg2 so value passes implicitly
+			c->mov(asmjit::a64::x2, *qw0);
+			c->mov(*arg0, *cpu);
+			c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch)));
+			c->blr(*qw1);
+			c->b(ret);
+		});
+
+		// Value <= 2: preserve rt value and call spu_wrch so that set_ch_value
+		// applies the MFC_WrTagUpdate semantics (writes ch_tag_upd and, in
+		// IMMEDIATE mode, updates ch_tag_stat). Skipping this (previous code)
+		// left ch_tag_stat stale so MFC_RdTagStat blocked forever.
+		c->mov(*arg0, *cpu);
+		c->mov(arg1->w(), Imm(+op.ra));
+		c->mov(asmjit::a64::x2, *qw0);
+		c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch)));
+		c->blr(*qw1);
+		c->bind(ret);
+		return;
+	}
+	case MFC_LSA:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->str(addr->w(), SPU_OFF_32(ch_mfc_cmd, &spu_mfc_cmd::lsa));
+		return;
+	}
+	case MFC_EAH:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->str(addr->w(), SPU_OFF_32(ch_mfc_cmd, &spu_mfc_cmd::eah));
+		return;
+	}
+	case MFC_EAL:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->str(addr->w(), SPU_OFF_32(ch_mfc_cmd, &spu_mfc_cmd::eal));
+		return;
+	}
+	case MFC_Size:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->and_(*addr, *addr, Imm(0x7fff));
+		c->strh(addr->w(), SPU_OFF_16(ch_mfc_cmd, &spu_mfc_cmd::size));
+		return;
+	}
+	case MFC_TagID:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->and_(*addr, *addr, Imm(0x1f));
+		c->strb(addr->w(), SPU_OFF_8(ch_mfc_cmd, &spu_mfc_cmd::tag));
+		return;
+	}
+	case MFC_Cmd:
+	{
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->strb(addr->w(), SPU_OFF_8(ch_mfc_cmd, &spu_mfc_cmd::cmd));
+		c->mov(*addr, Imm(m_pos - m_base));
+		c->add(*addr, *pc0, *addr);
+		c->and_(*addr, *addr, Imm(0x3fffc));
+		c->str(addr->w(), SPU_OFF_32(pc));
+		c->mov(*arg0, *cpu);
+		c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch_mfc)));
+		c->blr(*qw1);
+		return;
+	}
+	case MFC_WrListStallAck:
+	{
+		auto sub = [](spu_thread* _spu, u32 tag)
+		{
+			for (u32 i = 0; i < _spu->mfc_size; i++)
+			{
+				if (_spu->mfc_queue[i].tag == (tag | 0x80))
+				{
+					// Unset stall bit
+					_spu->mfc_queue[i].tag &= 0x7f;
+				}
+			}
+
+			_spu->do_mfc(true);
+		};
+
+		Label ret = c->newLabel();
+		c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->and_(qw0->w(), qw0->w(), Imm(0x1f));
+		c->ldr(qw1->w(), SPU_OFF_32(ch_stall_mask));
+		c->mov(a64::x12, Imm(1));
+		c->lslv(a64::x12, a64::x12, qw0->w());
+		c->tst(qw1->w(), a64::x12);
+		c->bic(qw1->w(), qw1->w(), a64::x12);
+		c->str(qw1->w(), SPU_OFF_32(ch_stall_mask));
+		c->b_eq(ret);
+		c->mov(*arg0, *cpu);
+		c->mov(arg1->w(), qw0->w());
+		c->mov(*qw1, Imm(reinterpret_cast<u64>(+sub)));
+		c->blr(*qw1);
+		c->bind(ret);
+		return;
+	}
+	case SPU_WrDec:
+	{
+		auto sub = [](spu_thread* _spu)
+		{
+			_spu->get_events(SPU_EVENT_TM);
+			_spu->ch_dec_start_timestamp = get_timebased_time();
+		};
+
+		c->mov(*arg0, *cpu);
+		c->mov(*qw1, Imm(reinterpret_cast<u64>(+sub)));
+		c->blr(*qw1);
+		c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+		c->str(qw0->w(), SPU_OFF_32(ch_dec_value));
+		c->mov(qw0->w(), Imm(0));
+		c->strb(qw0->w(), SPU_OFF_8(is_dec_frozen));
+		return;
+	}
+	case SPU_WrEventMask:
+	{
+		// TODO
+		break;
+	}
+	case SPU_WrEventAck:
+	{
+		// TODO
+		break;
+	}
+	case SPU_Set_Bkmk_Tag:
+	case SPU_PM_Start_Ev:
+	case SPU_PM_Stop_Ev:
+	{
+		return;
+	}
+	default: break;
+	}
+
+	// Generic channel write
+	c->mov(*addr, Imm(m_pos - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, Imm(0x3fffc));
+	c->str(addr->w(), SPU_OFF_32(pc));
+	c->mov(arg1->w(), Imm(+op.ra));
+	c->ldr(asmjit::a64::x2.w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+	c->mov(*arg0, *cpu);
+	c->mov(*qw1, Imm(reinterpret_cast<u64>(&spu_wrch)));
+	c->blr(*qw1);
+}
+
+void spu_recompiler::BIZ(spu_opcode_t op)
+{
+	asmjit::Label branch_label = c->newLabel();
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_eq(branch_label);
+	after.emplace_back([=, this, jt = m_targets[m_pos].size() > 1]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		branch_indirect(op, jt);
+	});
+}
+
+void spu_recompiler::BINZ(spu_opcode_t op)
+{
+	asmjit::Label branch_label = c->newLabel();
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(branch_label);
+	after.emplace_back([=, this, jt = m_targets[m_pos].size() > 1]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		branch_indirect(op, jt);
+	});
+}
+
+void spu_recompiler::BIHZ(spu_opcode_t op)
+{
+	asmjit::Label branch_label = c->newLabel();
+	c->ldrh(qw0->w(), SPU_OFF_16(gpr, op.rt, &v128::_u16, 6));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_eq(branch_label);
+	after.emplace_back([=, this, jt = m_targets[m_pos].size() > 1]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		branch_indirect(op, jt);
+	});
+}
+
+void spu_recompiler::BIHNZ(spu_opcode_t op)
+{
+	asmjit::Label branch_label = c->newLabel();
+	c->ldrh(qw0->w(), SPU_OFF_16(gpr, op.rt, &v128::_u16, 6));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(branch_label);
+	after.emplace_back([=, this, jt = m_targets[m_pos].size() > 1]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+		c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+		branch_indirect(op, jt);
+	});
+}
+
+void spu_recompiler::STOPD(spu_opcode_t op)
+{
+	STOP(spu_opcode_t{0x3fff});
+}
+
+void spu_recompiler::STQX(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->ldr(arg1->w(), SPU_OFF_32(gpr, op.rb, &v128::_u32, 3));
+				c->add(*addr, *addr, arg1->x());
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const VLink& vs = VAlloc();
+	c->rev64(vs.b16(), vt.b16());
+	c->ext(vs.b16(), vs.b16(), vs.b16(), 8);
+	c->str(vs, asmjit::arm::Mem(*addr));
+}
+
+void spu_recompiler::BI(spu_opcode_t op)
+{
+	const auto found = m_targets.find(m_pos);
+	const auto is_jt = found == m_targets.end() || found->second.size() > 1;
+	if (found == m_targets.end()) { spu_log.error("[0x%x] BI: no targets", m_pos); }
+	else if (op.d && found->second.size() == 1 && found->second[0] == spu_branch_target(m_pos, 1))
+	{
+		c->mov(*qw0, asmjit::Imm(0));
+		c->strb(qw0->w(), SPU_OFF_8(interrupts_enabled));
+		return;
+	}
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+	branch_indirect(op, is_jt, !is_jt);
+	m_pos = -1;
+}
+
+void spu_recompiler::BISL(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->and_(*addr, *addr, asmjit::Imm(0x3fffc));
+	const VLink& vr = VAlloc();
+	c->mov(*qw0, asmjit::Imm((m_pos + 4) - m_base));
+	c->add(qw0->w(), qw0->w(), pc0->w());
+	c->and_(qw0->w(), qw0->w(), asmjit::Imm(0x3fffc));
+	c->eor(vr.b16(), vr.b16(), vr.b16()); // clear stale pool data (rt = {0,0,0,ra})
+	c->ins(vr.s(3), qw0->w());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+	branch_set_link(m_pos + 4);
+	branch_indirect(op, true, false);
+	m_pos = -1;
+}
+
+void spu_recompiler::IRET(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(srr0));
+	branch_indirect(op);
+	m_pos = -1;
+}
+
+void spu_recompiler::BISLED(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::HBR(spu_opcode_t op)
+{
+	// Hint branch - no-op on ARM64
+}
+
+void spu_recompiler::GB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::GBH(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::GBB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FSM(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FSMH(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FSMB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FREST(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	c->frecpe(va.s4(), va.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FRSQEST(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	c->fabs(va.s4(), va.s4());
+	c->frsqrte(va.s4(), va.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::LQX(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->ldr(arg1->w(), SPU_OFF_32(gpr, op.rb, &v128::_u32, 3));
+				c->add(*addr, *addr, arg1->x());
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VAlloc();
+	c->ldr(vt, asmjit::arm::Mem(*addr));
+	c->rev64(vt.b16(), vt.b16());
+	c->ext(vt.b16(), vt.b16(), vt.b16(), 8);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTQBYBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQMBYBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::SHLQBYBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CBX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CHX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CWX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CDX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQMBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::SHLQBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQBY(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQMBY(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::SHLQBY(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ORX(spu_opcode_t op)
+{
+	// OR across all 4 words; result in word 3, words 0-2 = 0 (matches x86 pslldq 12)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 0));
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 1));
+	c->orr(qw0->w(), qw0->w(), qw1->w());
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 2));
+	c->orr(qw0->w(), qw0->w(), qw1->w());
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->orr(qw0->w(), qw0->w(), qw1->w());
+	const VLink& vz = VAlloc();
+	c->eor(vz.b16(), vz.b16(), vz.b16());
+	c->str(vz, SPU_OFF_128(gpr, op.rt));
+	c->str(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+}
+
+void spu_recompiler::CBD(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CHD(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CWD(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CDD(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQBII(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQMBII(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::SHLQBII(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::ROTQBYI(spu_opcode_t op)
+{
+	// Rotate the quadword right by (i7 & 0xf) bytes. EXT(Vd,Vn,Vm,idx) extracts from
+	// concat = Vm(high):Vn(low); with Vn=Vm=va this is a byte rotate.
+	const int s = op.i7 & 0xf;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (s == 0)
+	{
+		c->str(va, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	const VLink& vt = VAlloc();
+	c->ext(vt.b16(), va.b16(), va.b16(), 16 - s);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ROTQMBYI(spu_opcode_t op)
+{
+	// Byte shift right by ((0 - i7) & 0x1f) bytes, zero fill (matches x86 psrldq).
+	// EXT concat = Vm(high):Vn(low); for psrldq(va,s): Vn=va (low), Vm=zero (high), idx=s.
+	const int s = (0 - op.i7) & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (s == 0)
+	{
+		c->str(va, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	const VLink& vz = VAlloc();
+	c->eor(vz.b16(), vz.b16(), vz.b16());
+	if (s >= 16)
+	{
+		c->str(vz, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	const VLink& vt = VAlloc();
+	c->ext(vt.b16(), va.b16(), vz.b16(), s);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SHLQBYI(spu_opcode_t op)
+{
+	// Byte shift left by (i7 & 0x1f) bytes, zero fill (matches x86 pslldq).
+	// EXT concat = Vm(high):Vn(low); for pslldq(va,s): Vn=zero (low), Vm=va (high), idx=16-s.
+	const int s = op.i7 & 0x1f;
+	const VLink& va = VGet(op.ra, VType::Int);
+	if (s == 0)
+	{
+		c->str(va, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	const VLink& vz = VAlloc();
+	c->eor(vz.b16(), vz.b16(), vz.b16());
+	if (s >= 16)
+	{
+		c->str(vz, SPU_OFF_128(gpr, op.rt));
+		return;
+	}
+	const VLink& vt = VAlloc();
+	c->ext(vt.b16(), vz.b16(), va.b16(), 16 - s);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::NOP(spu_opcode_t op)
+{
+	// No operation
+}
+
+void spu_recompiler::CGT(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmgt(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XOR(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->eor(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGTH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmgt(va.h8(), va.h8(), vb.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::EQV(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->eor(va.b16(), va.b16(), vb.b16());
+	c->mvn(va.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGTB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmgt(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SUMB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::HGT(spu_opcode_t op)
+{
+	// Halt if greater than (signed, word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.rb, &v128::_u32, 3));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_gt(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::CLZ(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	c->clz(va.s4(), va.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XSWD(spu_opcode_t op)
+{
+	// sign-extend word 0 -> dword 0, word 2 -> dword 1
+	c->ldrsw(*qw0, SPU_OFF_32(gpr, op.ra, &v128::_s32, 0));
+	c->str(*qw0, SPU_OFF_64(gpr, op.rt, &v128::_s64, 0));
+	c->ldrsw(*qw0, SPU_OFF_32(gpr, op.ra, &v128::_s32, 2));
+	c->str(*qw0, SPU_OFF_64(gpr, op.rt, &v128::_s64, 1));
+}
+
+void spu_recompiler::XSHW(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	c->shl(va.s4(), va.s4(), asmjit::Imm(16));
+	c->sshr(va.s4(), va.s4(), asmjit::Imm(16));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CNTB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	c->cnt(va.b16(), va.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XSBH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	c->shl(va.h8(), va.h8(), asmjit::Imm(8));
+	c->sshr(va.h8(), va.h8(), asmjit::Imm(8));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CLGT(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmhi(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ANDC(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->bic(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FCGT(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->fcmgt(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFCGT(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FA(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->fadd(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FS(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->fsub(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FM(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->fmul(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CLGTH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmhi(va.h8(), va.h8(), vb.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ORC(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->orn(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FCMGT(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->facgt(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFCMGT(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	c->facgt(va.d2(), va.d2(), vb.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFA(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	c->fadd(va.d2(), va.d2(), vb.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFS(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	c->fsub(va.d2(), va.d2(), vb.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFM(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	c->fmul(va.d2(), va.d2(), vb.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CLGTB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmhi(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::HLGT(spu_opcode_t op)
+{
+	// Halt if greater than (unsigned, word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.rb, &v128::_u32, 3));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_hi(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::DFMA(spu_opcode_t op)
+{
+	// rt += ra*rb (note: rt == rc field in this encoding)
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	const VLink& vt = VGet(op.rt, VType::Double);
+	c->fmul(va.d2(), va.d2(), vb.d2());
+	c->fadd(vt.d2(), vt.d2(), va.d2());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFMS(spu_opcode_t op)
+{
+	// rt = ra*rb - rt
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	const VLink& vt = VGet(op.rt, VType::Double);
+	c->fmul(va.d2(), va.d2(), vb.d2());
+	c->fsub(va.d2(), va.d2(), vt.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFNMS(spu_opcode_t op)
+{
+	// rt = rt - ra*rb
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	const VLink& vt = VGet(op.rt, VType::Double);
+	c->fmul(va.d2(), va.d2(), vb.d2());
+	c->fsub(vt.d2(), vt.d2(), va.d2());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFNMA(spu_opcode_t op)
+{
+	// rt = -(ra*rb + rt)
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vb = VGet(op.rb, VType::Double);
+	const VLink& vt = VGet(op.rt, VType::Double);
+	c->fmul(va.d2(), va.d2(), vb.d2());
+	c->fadd(va.d2(), va.d2(), vt.d2());
+	c->fneg(va.d2(), va.d2());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CEQ(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmeq(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYHHU(spu_opcode_t op)
+{
+	// Unsigned multiply of the upper 16-bit halves: rt.w[i] = u16(ra.h[2i+1]) * u16(rb.h[2i+1])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VAlloc();
+	const VLink& vu = VAlloc();
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(16));
+	c->ushr(vb.s4(), vb.s4(), asmjit::Imm(16));
+	c->umull(vt.s4(), va.h8(), vb.h8());
+	c->umull2(vu.s4(), va.h8(), vb.h8());
+	c->uzp1(vt.s4(), vt.s4(), vu.s4());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ADDX(spu_opcode_t op)
+{
+	// rt = ra + rb + (old rt & 1)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const asmjit::a64::VecV& vc_one = VAlloc();
+	c->ldr(vc_one, VConst(v128::from32p(1)));
+	c->and_(vt.b16(), vt.b16(), vc_one.b16());
+	c->add(va.s4(), va.s4(), vb.s4());
+	c->add(va.s4(), va.s4(), vt.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SFX(spu_opcode_t op)
+{
+	// rt = rb - ra - (~old rt & 1)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const asmjit::a64::VecV& vc_one = VAlloc();
+	c->ldr(vc_one, VConst(v128::from32p(1)));
+	c->bic(vt.b16(), vc_one.b16(), vt.b16());
+	c->sub(vb.s4(), vb.s4(), va.s4());
+	c->sub(vb.s4(), vb.s4(), vt.s4());
+	c->str(vb, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::BGX(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::MPYHHA(spu_opcode_t op)
+{
+	// rt += signed multiply of the upper 16-bit halves: rt.w[i] += s16(ra.h[2i+1]) * s16(rb.h[2i+1])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const VLink& vlo = VAlloc();
+	const VLink& vhi = VAlloc();
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(16));
+	c->ushr(vb.s4(), vb.s4(), asmjit::Imm(16));
+	c->smull(vlo.s4(), va.h8(), vb.h8());
+	c->smull2(vhi.s4(), va.h8(), vb.h8());
+	c->uzp1(vlo.s4(), vlo.s4(), vhi.s4());
+	c->add(vlo.s4(), vlo.s4(), vt.s4());
+	c->str(vlo, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYHHAU(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FSCRRD(spu_opcode_t op)
+{
+	// Zero (matches the interpreter)
+	const VLink& vr = VAlloc();
+	c->eor(vr.b16(), vr.b16(), vr.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FESD(spu_opcode_t op)
+{
+	// Convert float words 1 and 3 to the two doubles
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vt = VAlloc();
+	const VLink& vd = VAlloc();
+	c->uzp2(vt.s4(), va.s4(), va.s4()); // [f1, f3, f1, f3]
+	c->fcvtl(vd.d2(), vt.s2());
+	c->str(vd, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FRDS(spu_opcode_t op)
+{
+	// Convert the two doubles to float words 1 and 3
+	const VLink& va = VGet(op.ra, VType::Double);
+	const VLink& vt = VAlloc();
+	const VLink& vz = VAlloc();
+	const VLink& vs = VAlloc();
+	c->fcvtn(vt.s2(), va.d2()); // [f(d0), f(d1), 0, 0]
+	c->eor(vz.b16(), vz.b16(), vz.b16());
+	c->zip1(vs.s4(), vz.s4(), vt.s4()); // [0, f(d0), 0, f(d1)]
+	c->str(vs, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FSCRWR(spu_opcode_t op)
+{
+	// nop (not implemented), matches the x86 recompiler
+}
+
+void spu_recompiler::DFTSV(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::FCEQ(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	c->fcmeq(va.s4(), va.s4(), vb.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFCEQ(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::MPY(spu_opcode_t op)
+{
+	// Signed multiply of the lower 16-bit halves: rt.w[i] = s16(ra.h[2i]) * s16(rb.h[2i])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vlo = VAlloc();
+	const VLink& vhi = VAlloc();
+	c->smull(vlo.s4(), va.h8(), vb.h8());
+	c->smull2(vhi.s4(), va.h8(), vb.h8());
+	c->uzp1(vlo.s4(), vlo.s4(), vhi.s4());
+	c->str(vlo, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYH(spu_opcode_t op)
+{
+	// ((s16(ra.h[2i+1]) * s16(rb.h[2i])) & 0xffff) << 16
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const asmjit::a64::VecV& vc_mask = VAlloc();
+	c->ldr(vc_mask, VConst(v128::from32p(0xffff)));
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(16));
+	c->and_(vb.b16(), vb.b16(), vc_mask.b16());
+	c->mul(va.s4(), va.s4(), vb.s4());
+	c->shl(va.s4(), va.s4(), asmjit::Imm(16));
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYHH(spu_opcode_t op)
+{
+	// Signed multiply of the upper 16-bit halves: rt.w[i] = s16(ra.h[2i+1]) * s16(rb.h[2i+1])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vlo = VAlloc();
+	const VLink& vhi = VAlloc();
+	c->ushr(va.s4(), va.s4(), asmjit::Imm(16));
+	c->ushr(vb.s4(), vb.s4(), asmjit::Imm(16));
+	c->smull(vlo.s4(), va.h8(), vb.h8());
+	c->smull2(vhi.s4(), va.h8(), vb.h8());
+	c->uzp1(vlo.s4(), vlo.s4(), vhi.s4());
+	c->str(vlo, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYS(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CEQH(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmeq(va.h8(), va.h8(), vb.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FCMEQ(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	const VLink& vabs_a = VAlloc();
+	const VLink& vabs_b = VAlloc();
+	c->fabs(vabs_a.s4(), va.s4());
+	c->fabs(vabs_b.s4(), vb.s4());
+	c->fcmeq(vabs_a.s4(), vabs_a.s4(), vabs_b.s4());
+	c->str(vabs_a, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::DFCMEQ(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::MPYU(spu_opcode_t op)
+{
+	// Unsigned multiply of the lower 16-bit halves: rt.w[i] = u16(ra.h[2i]) * u16(rb.h[2i])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vlo = VAlloc();
+	const VLink& vhi = VAlloc();
+	c->umull(vlo.s4(), va.h8(), vb.h8());
+	c->umull2(vhi.s4(), va.h8(), vb.h8());
+	c->uzp1(vlo.s4(), vlo.s4(), vhi.s4());
+	c->str(vlo, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CEQB(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	c->cmeq(va.b16(), va.b16(), vb.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::FI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::HEQ(spu_opcode_t op)
+{
+	// Halt if equal (word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->ldr(qw1->w(), SPU_OFF_32(gpr, op.rb, &v128::_u32, 3));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_eq(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::CFLTS(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CFLTU(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CSFLT(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::CUFLT(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::BRZ(spu_opcode_t op)
+{
+	const u32 target = spu_branch_target(m_pos, op.i16);
+	asmjit::Label branch_label = c->newLabel();
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_eq(branch_label);
+	after.emplace_back([=, this]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		branch_fixed(target);
+	});
+}
+
+void spu_recompiler::STQA(spu_opcode_t op)
+{
+	c->mov(*addr, asmjit::Imm(spu_ls_target(0, op.i16)));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const VLink& vs = VAlloc();
+	c->rev64(vs.b16(), vt.b16());
+	c->ext(vs.b16(), vs.b16(), vs.b16(), 8);
+	c->str(vs, asmjit::arm::Mem(*addr));
+}
+
+void spu_recompiler::BRNZ(spu_opcode_t op)
+{
+	const u32 target = spu_branch_target(m_pos, op.i16);
+	asmjit::Label branch_label = c->newLabel();
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.rt, &v128::_u32, 3));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(branch_label);
+	after.emplace_back([=, this]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		branch_fixed(target);
+	});
+}
+
+void spu_recompiler::BRHZ(spu_opcode_t op)
+{
+	const u32 target = spu_branch_target(m_pos, op.i16);
+	asmjit::Label branch_label = c->newLabel();
+	c->ldrh(qw0->w(), SPU_OFF_16(gpr, op.rt, &v128::_u16, 6));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_eq(branch_label);
+	after.emplace_back([=, this]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		branch_fixed(target);
+	});
+}
+
+void spu_recompiler::BRHNZ(spu_opcode_t op)
+{
+	const u32 target = spu_branch_target(m_pos, op.i16);
+	asmjit::Label branch_label = c->newLabel();
+	c->ldrh(qw0->w(), SPU_OFF_16(gpr, op.rt, &v128::_u16, 6));
+	c->cmp(qw0->w(), asmjit::Imm(0));
+	c->b_ne(branch_label);
+	after.emplace_back([=, this]
+	{
+		c->align(asmjit::AlignMode::kCode, 16);
+		c->bind(branch_label);
+		branch_fixed(target);
+	});
+}
+
+void spu_recompiler::STQR(spu_opcode_t op)
+{
+	// Target depends on runtime pc: relocate via pc0 like x64 get_pc
+	c->mov(*addr, asmjit::Imm(spu_ls_target(m_pos, op.i16) - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const VLink& vs = VAlloc();
+	c->rev64(vs.b16(), vt.b16());
+	c->ext(vs.b16(), vs.b16(), vs.b16(), 8);
+	c->str(vs, asmjit::arm::Mem(*addr));
+}
+
+void spu_recompiler::BRA(spu_opcode_t op)
+{
+	// Absolute branch: target = (i16 << 2) & 0x3fffc
+	branch_fixed(spu_branch_target(0, op.i16), true);
+	m_pos = -1;
+}
+
+void spu_recompiler::LQA(spu_opcode_t op)
+{
+	c->mov(*addr, asmjit::Imm(spu_ls_target(0, op.i16)));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VAlloc();
+	c->ldr(vt, asmjit::arm::Mem(*addr));
+	c->rev64(vt.b16(), vt.b16());
+	c->ext(vt.b16(), vt.b16(), vt.b16(), 8);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::BRASL(spu_opcode_t op)
+{
+	// Absolute branch and set link: rt = m_pos + 4, target = (i16 << 2) & 0x3fffc
+	const u32 target = spu_branch_target(0, op.i16);
+
+	// Set link register rt = return address
+	const VLink& vr = VAlloc();
+	c->mov(*qw0, asmjit::Imm((m_pos + 4) - m_base));
+	c->add(qw0->w(), qw0->w(), pc0->w());
+	c->and_(qw0->w(), qw0->w(), asmjit::Imm(0x3fffc));
+	c->eor(vr.b16(), vr.b16(), vr.b16()); // clear stale pool data (rt = {0,0,0,ra})
+	c->ins(vr.s(3), qw0->w());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+
+	branch_set_link(m_pos + 4);
+	branch_fixed(target, true);
+	m_pos = -1;
+}
+
+void spu_recompiler::BR(spu_opcode_t op)
+{
+	// Relative branch: target = (m_pos + (i16 << 2)) & 0x3fffc
+	const u32 target = spu_branch_target(m_pos, op.i16);
+
+	if (target != m_pos + 4)
+	{
+		branch_fixed(target);
+		m_pos = -1;
+	}
+}
+
+void spu_recompiler::FSMBI(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::BRSL(spu_opcode_t op)
+{
+	// Relative branch and set link: rt = m_pos + 4, target = (m_pos + (i16 << 2)) & 0x3fffc
+	const u32 target = spu_branch_target(m_pos, op.i16);
+
+	// Set link register rt = return address
+	const VLink& vr = VAlloc();
+	c->mov(*qw0, asmjit::Imm((m_pos + 4) - m_base));
+	c->add(qw0->w(), qw0->w(), pc0->w());
+	c->and_(qw0->w(), qw0->w(), asmjit::Imm(0x3fffc));
+	c->eor(vr.b16(), vr.b16(), vr.b16()); // clear stale pool data (rt = {0,0,0,ra})
+	c->ins(vr.s(3), qw0->w());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+
+	if (target != m_pos + 4)
+	{
+		branch_set_link(m_pos + 4);
+		branch_fixed(target);
+		m_pos = -1;
+	}
+}
+
+void spu_recompiler::LQR(spu_opcode_t op)
+{
+	// Target depends on runtime pc: relocate via pc0 like x64 get_pc
+	c->mov(*addr, asmjit::Imm(spu_ls_target(m_pos, op.i16) - m_base));
+	c->add(*addr, *pc0, *addr);
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VAlloc();
+	c->ldr(vt, asmjit::arm::Mem(*addr));
+	c->rev64(vt.b16(), vt.b16());
+	c->ext(vt.b16(), vt.b16(), vt.b16(), 8);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::IL(spu_opcode_t op)
+{
+	const VLink& vr = VAlloc();
+	const asmjit::a64::VecV& vc_t18 = VAlloc();
+	c->ldr(vc_t18, VConst(v128::from32p(op.si16)));
+	c->mov(vr.b16(), vc_t18.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ILHU(spu_opcode_t op)
+{
+	const VLink& vr = VAlloc();
+	const asmjit::a64::VecV& vc_t19 = VAlloc();
+	c->ldr(vc_t19, VConst(v128::from32p(op.i16 << 16)));
+	c->mov(vr.b16(), vc_t19.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ILH(spu_opcode_t op)
+{
+	const VLink& vr = VAlloc();
+	const asmjit::a64::VecV& vc_t20 = VAlloc();
+	c->ldr(vc_t20, VConst(v128::from16p(op.i16)));
+	c->mov(vr.b16(), vc_t20.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::IOHL(spu_opcode_t op)
+{
+	// Mirror the x64 implementation exactly: OR with the raw 16-bit immediate
+	// (no << 16 shift).
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const asmjit::a64::VecV& vc_t21 = VAlloc();
+	c->ldr(vc_t21, VConst(v128::from32p(op.i16)));
+	c->orr(vt.b16(), vt.b16(), vc_t21.b16());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ORI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t22 = VAlloc();
+	c->ldr(vc_t22, VConst(v128::from32p(op.si10)));
+	c->orr(va.b16(), va.b16(), vc_t22.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ORHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t23 = VAlloc();
+	c->ldr(vc_t23, VConst(v128::from16p(op.si10)));
+	c->orr(va.b16(), va.b16(), vc_t23.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ORBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t24 = VAlloc();
+	c->ldr(vc_t24, VConst(v128::from8p(op.si10)));
+	c->orr(va.b16(), va.b16(), vc_t24.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SFI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vi = VAlloc();
+	const asmjit::a64::VecV& vc_t25 = VAlloc();
+	c->ldr(vc_t25, VConst(v128::from32p(op.si10)));
+	c->mov(vi.b16(), vc_t25.b16());
+	c->sub(vi.s4(), vi.s4(), va.s4());
+	c->str(vi, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SFHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vi = VAlloc();
+	const asmjit::a64::VecV& vc_t26 = VAlloc();
+	c->ldr(vc_t26, VConst(v128::from16p(op.si10)));
+	c->mov(vi.b16(), vc_t26.b16());
+	c->sub(vi.h8(), vi.h8(), va.h8());
+	c->str(vi, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ANDI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t27 = VAlloc();
+	c->ldr(vc_t27, VConst(v128::from32p(op.si10)));
+	c->and_(va.b16(), va.b16(), vc_t27.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ANDHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t28 = VAlloc();
+	c->ldr(vc_t28, VConst(v128::from16p(op.si10)));
+	c->and_(va.b16(), va.b16(), vc_t28.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::ANDBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t29 = VAlloc();
+	c->ldr(vc_t29, VConst(v128::from8p(op.si10)));
+	c->and_(va.b16(), va.b16(), vc_t29.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::AI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t30 = VAlloc();
+	c->ldr(vc_t30, VConst(v128::from32p(op.si10)));
+	c->add(va.s4(), va.s4(), vc_t30.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::AHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t31 = VAlloc();
+	c->ldr(vc_t31, VConst(v128::from16p(op.si10)));
+	c->add(va.h8(), va.h8(), vc_t31.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::STQD(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->add(*addr, *addr, asmjit::Imm(op.si10 << 4));
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VGet(op.rt, VType::Int);
+	const VLink& vs = VAlloc();
+	c->rev64(vs.b16(), vt.b16());
+	c->ext(vs.b16(), vs.b16(), vs.b16(), 8);
+	c->str(vs, asmjit::arm::Mem(*addr));
+}
+
+void spu_recompiler::LQD(spu_opcode_t op)
+{
+	c->ldr(addr->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->add(*addr, *addr, asmjit::Imm(op.si10 << 4));
+	c->and_(*addr, *addr, asmjit::Imm(0x3fff0));
+	c->add(*addr, *ls, *addr);
+	const VLink& vt = VAlloc();
+	c->ldr(vt, asmjit::arm::Mem(*addr));
+	c->rev64(vt.b16(), vt.b16());
+	c->ext(vt.b16(), vt.b16(), vt.b16(), 8);
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XORI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t32 = VAlloc();
+	c->ldr(vc_t32, VConst(v128::from32p(op.si10)));
+	c->eor(va.b16(), va.b16(), vc_t32.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XORHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t33 = VAlloc();
+	c->ldr(vc_t33, VConst(v128::from16p(op.si10)));
+	c->eor(va.b16(), va.b16(), vc_t33.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::XORBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t34 = VAlloc();
+	c->ldr(vc_t34, VConst(v128::from8p(op.si10)));
+	c->eor(va.b16(), va.b16(), vc_t34.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGTI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t35 = VAlloc();
+	c->ldr(vc_t35, VConst(v128::from32p(op.si10)));
+	c->cmgt(va.s4(), va.s4(), vc_t35.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGTHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t36 = VAlloc();
+	c->ldr(vc_t36, VConst(v128::from16p(op.si10)));
+	c->cmgt(va.h8(), va.h8(), vc_t36.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CGTBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t37 = VAlloc();
+	c->ldr(vc_t37, VConst(v128::from8p(op.si10)));
+	c->cmgt(va.b16(), va.b16(), vc_t37.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::HGTI(spu_opcode_t op)
+{
+	// Halt if greater than immediate (signed, word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->mov(qw1->w(), asmjit::Imm(static_cast<u32>(op.si10)));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_gt(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::CLGTI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t39 = VAlloc();
+	c->ldr(vc_t39, VConst(v128::from32p(op.si10)));
+	c->cmhi(va.s4(), va.s4(), vc_t39.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CLGTHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t40 = VAlloc();
+	c->ldr(vc_t40, VConst(v128::from16p(op.si10)));
+	c->cmhi(va.h8(), va.h8(), vc_t40.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CLGTBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t41 = VAlloc();
+	c->ldr(vc_t41, VConst(v128::from8p(op.si10)));
+	c->cmhi(va.b16(), va.b16(), vc_t41.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::HLGTI(spu_opcode_t op)
+{
+	// Halt if greater than immediate (unsigned, word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->mov(qw1->w(), asmjit::Imm(static_cast<u32>(op.si10)));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_hi(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::MPYI(spu_opcode_t op)
+{
+	// rt[i] = s16(ra.h[2i]) * si10 + s16(ra.h[2i+1]) * si10 (madd_epi16 semantics)
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vt = VAlloc();
+	const VLink& vu = VAlloc();
+	const asmjit::a64::VecV& vc = VAlloc();
+	c->ldr(vc, VConst(v128::from32p(op.si10 & 0xffff)));
+	c->smull(vt.s4(), va.h8(), vc.h8());
+	c->smull2(vu.s4(), va.h8(), vc.h8());
+	c->addp(vt.s4(), vt.s4(), vu.s4());
+	c->str(vt, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::MPYUI(spu_opcode_t op)
+{
+	// Complex mulhi/mullo blend semantics - defer to the interpreter for correctness
+	fall(op);
+}
+
+void spu_recompiler::CEQI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t44 = VAlloc();
+	c->ldr(vc_t44, VConst(v128::from32p(op.si10)));
+	c->cmeq(va.s4(), va.s4(), vc_t44.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CEQHI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t45 = VAlloc();
+	c->ldr(vc_t45, VConst(v128::from16p(op.si10)));
+	c->cmeq(va.h8(), va.h8(), vc_t45.h8());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::CEQBI(spu_opcode_t op)
+{
+	const VLink& va = VGet(op.ra, VType::Int);
+	const asmjit::a64::VecV& vc_t46 = VAlloc();
+	c->ldr(vc_t46, VConst(v128::from8p(op.si10)));
+	c->cmeq(va.b16(), va.b16(), vc_t46.b16());
+	c->str(va, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::HEQI(spu_opcode_t op)
+{
+	// Halt if equal immediate (word 3): emit the halt magic write (matches x86/LLVM)
+	c->ldr(qw0->w(), SPU_OFF_32(gpr, op.ra, &v128::_u32, 3));
+	c->mov(qw1->w(), asmjit::Imm(static_cast<u32>(op.si10)));
+	c->cmp(qw0->w(), qw1->w());
+
+	asmjit::Label label = c->newLabel();
+	c->b_eq(label);
+	a64_halt_body(label, op);
+}
+
+void spu_recompiler::HBRA(spu_opcode_t op)
+{
+	// Hint branch relative - no-op on ARM64
+}
+
+void spu_recompiler::HBRR(spu_opcode_t op)
+{
+	// Hint branch relative - no-op on ARM64
+}
+
+void spu_recompiler::ILA(spu_opcode_t op)
+{
+	const VLink& vr = VAlloc();
+	const asmjit::a64::VecV& vc_t48 = VAlloc();
+	c->ldr(vc_t48, VConst(v128::from32p(op.i18)));
+	c->mov(vr.b16(), vc_t48.b16());
+	c->str(vr, SPU_OFF_128(gpr, op.rt));
+}
+
+void spu_recompiler::SELB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::SHUFB(spu_opcode_t op)
+{
+	fall(op);
+}
+
+void spu_recompiler::MPYA(spu_opcode_t op)
+{
+	// rt4.w[i] = rc.w[i] + s16(ra.h[2i]) * s16(rb.h[2i])
+	const VLink& va = VGet(op.ra, VType::Int);
+	const VLink& vb = VGet(op.rb, VType::Int);
+	const VLink& vc_ = VGet(op.rc, VType::Int);
+	const VLink& vlo = VAlloc();
+	const VLink& vhi = VAlloc();
+	c->smull(vlo.s4(), va.h8(), vb.h8());
+	c->smull2(vhi.s4(), va.h8(), vb.h8());
+	c->uzp1(vlo.s4(), vlo.s4(), vhi.s4());
+	c->add(vlo.s4(), vlo.s4(), vc_.s4());
+	c->str(vlo, SPU_OFF_128(gpr, op.rt4));
+}
+
+void spu_recompiler::FNMS(spu_opcode_t op)
+{
+	// rt4 = rc - a*b, extended floats (exp == 0xff) are treated as zero
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	const VLink& vc_ = VGet(op.rc, VType::Float);
+	const VLink& vt = VAlloc();
+	const asmjit::a64::VecV& vc_mask = VAlloc();
+	c->ldr(vc_mask, VConst(v128::from32p(0x7f800000)));
+	c->and_(vt.b16(), va.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(va.b16(), va.b16(), vt.b16());
+	c->and_(vt.b16(), vb.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(vb.b16(), vb.b16(), vt.b16());
+	c->fmul(va.s4(), va.s4(), vb.s4());
+	c->fsub(vc_.s4(), vc_.s4(), va.s4());
+	c->str(vc_, SPU_OFF_128(gpr, op.rt4));
+}
+
+void spu_recompiler::FMA(spu_opcode_t op)
+{
+	// rt4 = a*b + rc, extended floats (exp == 0xff) are treated as zero
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	const VLink& vc_ = VGet(op.rc, VType::Float);
+	const VLink& vt = VAlloc();
+	const asmjit::a64::VecV& vc_mask = VAlloc();
+	c->ldr(vc_mask, VConst(v128::from32p(0x7f800000)));
+	c->and_(vt.b16(), va.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(va.b16(), va.b16(), vt.b16());
+	c->and_(vt.b16(), vb.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(vb.b16(), vb.b16(), vt.b16());
+	c->fmul(va.s4(), va.s4(), vb.s4());
+	c->fadd(va.s4(), va.s4(), vc_.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt4));
+}
+
+void spu_recompiler::FMS(spu_opcode_t op)
+{
+	// rt4 = a*b - rc, extended floats (exp == 0xff) are treated as zero
+	const VLink& va = VGet(op.ra, VType::Float);
+	const VLink& vb = VGet(op.rb, VType::Float);
+	const VLink& vc_ = VGet(op.rc, VType::Float);
+	const VLink& vt = VAlloc();
+	const asmjit::a64::VecV& vc_mask = VAlloc();
+	c->ldr(vc_mask, VConst(v128::from32p(0x7f800000)));
+	c->and_(vt.b16(), va.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(va.b16(), va.b16(), vt.b16());
+	c->and_(vt.b16(), vb.b16(), vc_mask.b16());
+	c->cmeq(vt.s4(), vt.s4(), vc_mask.s4());
+	c->bic(vb.b16(), vb.b16(), vt.b16());
+	c->fmul(va.s4(), va.s4(), vb.s4());
+	c->fsub(va.s4(), va.s4(), vc_.s4());
+	c->str(va, SPU_OFF_128(gpr, op.rt4));
+}
+
+#endif

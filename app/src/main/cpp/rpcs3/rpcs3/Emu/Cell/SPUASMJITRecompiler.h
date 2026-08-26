@@ -18,6 +18,7 @@ public:
 	virtual spu_function_t compile(spu_program&&) override;
 
 private:
+#ifdef ARCH_X64
 	// ASMJIT runtime
 	::jit_runtime m_asmrt;
 
@@ -90,11 +91,97 @@ private:
 	asmjit::x86::Mem XmmConst(const v128& data);
 
 	asmjit::x86::Mem get_pc(u32 addr);
-	void branch_fixed(u32 target, bool absolute = false);
-	void branch_indirect(spu_opcode_t op, bool jt = false, bool ret = true);
-	void branch_set_link(u32 target);
-	void fall(spu_opcode_t op);
+#elif defined(ARCH_ARM64)
+    // ASMJIT runtime
+    ::jit_runtime m_asmrt;
 
+    u32 m_base;
+
+    // emitter:
+    asmjit::a64::Assembler* c;
+
+    // arguments:
+    const asmjit::a64::Gp* cpu;
+    const asmjit::a64::Gp* ls;
+    const asmjit::a64::Gp* rip;
+    const asmjit::a64::Gp* pc0;
+
+    // Native args or temp variables:
+    const asmjit::a64::Gp* arg0;
+    const asmjit::a64::Gp* arg1;
+    const asmjit::a64::Gp* qw0;
+    const asmjit::a64::Gp* qw1;
+
+    // temporary:
+    const asmjit::a64::Gp* addr;
+    std::array<const asmjit::a64::VecV*, 32> vec;
+
+    // workload for the end of function:
+    std::vector<std::function<void()>> after;
+    std::vector<std::function<void()>> consts;
+
+    // Function return label
+    asmjit::Label label_stop;
+
+    // Indirect branch dispatch table
+    asmjit::Label instr_table;
+
+    // All valid instruction labels
+    std::map<u32, asmjit::Label> instr_labels;
+
+    // All emitted 128-bit consts
+    std::map<std::pair<u64, u64>, asmjit::Label> v_consts;
+
+    // Persistent host-side 128-bit const storage (address loaded via movz/movk)
+    std::map<std::pair<u64, u64>, v128> v_data;
+
+    class VLink
+    {
+        const asmjit::a64::VecV* m_var;
+
+    public:
+        VLink(const asmjit::a64::VecV*& v_var)
+                : m_var(v_var)
+        {
+            v_var = nullptr;
+        }
+
+        VLink(VLink&&) = default; // MoveConstructible + delete copy constructor and copy/move operators
+
+        operator const asmjit::a64::VecV&() const
+        {
+            return *m_var;
+        }
+
+        asmjit::a64::VecV b16() const { return m_var->b16(); }
+        asmjit::a64::VecV h8() const { return m_var->h8(); }
+        asmjit::a64::VecV s4() const { return m_var->s4(); }
+        asmjit::a64::VecV d2() const { return m_var->d2(); }
+        asmjit::a64::VecD s2() const { return m_var->s2(); }
+        asmjit::a64::VecV s(uint32_t index = 0) const { return m_var->s(index); }
+    };
+
+    enum class VType
+    {
+        Int,
+        Float,
+        Double,
+    };
+
+    VLink VAlloc();
+    VLink VGet(s8 reg, VType type);
+
+    asmjit::a64::Mem VConst(const v128& data);
+
+    asmjit::a64::Mem get_pc(u32 addr);
+#endif
+    void branch_fixed(u32 target, bool absolute = false);
+    void branch_indirect(spu_opcode_t op, bool jt = false, bool ret = true);
+   	void branch_set_link(u32 target);
+   	void fall(spu_opcode_t op);
+   #if defined(ARCH_ARM64)
+   	void a64_halt_body(asmjit::Label label, spu_opcode_t op);
+   #endif
 public:
 	void UNK(spu_opcode_t op);
 

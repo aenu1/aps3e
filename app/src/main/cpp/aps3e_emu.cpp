@@ -623,7 +623,7 @@ namespace ae{
         Emu.SetCallbacks(std::move(callbacks));
         Emu.SetHasGui(true);
         Emu.SetSupportedRenderers({video_renderer::vulkan, video_renderer::null});
-
+        //Emu.SetDefaultRenderer(video_renderer::vulkan);
         Emu.Init();
     }
 

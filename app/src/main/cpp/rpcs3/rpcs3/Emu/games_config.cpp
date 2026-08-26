@@ -4,7 +4,7 @@
 #include "util/yaml.hpp"
 #include "Utilities/File.h"
 
-#include "Loader/ISO.h"
+#include "Loader/iso.h"
 
 LOG_CHANNEL(cfg_log, "CFG");
 

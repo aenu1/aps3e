@@ -1787,13 +1787,11 @@ void spu_thread::init_spu_decoder()
 #else
 	const spu_decoder_type spu_decoder = g_cfg.core.spu_decoder;
 
-#if defined(ARCH_X64)
 	if (spu_decoder == spu_decoder_type::asmjit)
 	{
 		jit = spu_recompiler_base::make_asmjit_recompiler();
 	}
 	else
-#endif
 	if (spu_decoder == spu_decoder_type::llvm)
 	{
 #if defined(ARCH_X64)
@@ -3483,7 +3481,7 @@ bool spu_thread::do_putllc(const spu_mfc_cmd& args)
 			{
 				if (diff16_pos != umax)
 				{
-					// Do it with CMPXCHG16B if possible, this allows to improve accuracy whenever "RSX Accurate Reservations" is off 
+					// Do it with CMPXCHG16B if possible, this allows to improve accuracy whenever "RSX Accurate Reservations" is off
 					if (atomic_storage<u128>::compare_exchange(*cast_as(super_data, diff16_pos), *cast_as(rdata, diff16_pos), *cast_as_const(to_write, diff16_pos)))
 					{
 						return true;
@@ -4154,7 +4152,7 @@ u32 evaluate_spin_optimization(std::span<u8> stats, u64 evaluate_time, const cfg
 	if (stats.size() == 4)
 	{
 		add_count = zero_count == 3 && total_wait >= 9 ? (total_wait - 8) * 40
-			: zero_count == 2 && total_wait >= 8 ? (total_wait - 7) * 40 
+			: zero_count == 2 && total_wait >= 8 ? (total_wait - 7) * 40
 			: zero_count == 1 && total_wait >= 7 ? (total_wait - 6) * 40
 			: zero_count == 0 && total_wait >= 4 ? (total_wait - 3) * 40
 			: 0;
@@ -4162,7 +4160,7 @@ u32 evaluate_spin_optimization(std::span<u8> stats, u64 evaluate_time, const cfg
 	else
 	{
 		add_count = zero_count >= 12 && total_wait >= 80 ? (total_wait - 80) * 30
-			: zero_count >= 7 && total_wait >= 30 ? (total_wait - 30) * 10 
+			: zero_count >= 7 && total_wait >= 30 ? (total_wait - 30) * 10
 			: zero_count >= 4 && total_wait >= 20 ? (total_wait - 20) * 10
 			: zero_count >= 0 && total_wait >= 10 ? (total_wait - 10) * 10
 			: 0;
