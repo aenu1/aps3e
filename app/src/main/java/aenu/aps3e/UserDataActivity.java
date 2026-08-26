@@ -230,6 +230,7 @@ public class UserDataActivity extends AppCompatActivity {
 
         final File[] _all_ppu_cache_dirs = MainActivity.get_all_ppu_cache_dirs();
         final ArrayList<File> list = new ArrayList<>();
+        if(_all_ppu_cache_dirs!=null)
         for(File dir:_all_ppu_cache_dirs) {
             if(dir.getName().length()==9)
                 list.add(dir);
