@@ -41,7 +41,7 @@ namespace rsx
 				rsx_log.notice("User selected resume in home menu");
 				return page_navigation::exit;
 			});
-#if 1
+
 			add_page(home_menu::fa_icon::settings, std::make_shared<home_menu_settings>(x, y, width, height, use_separators, this));
 
 			if (rsx::overlays::friends_list_dialog::rpcn_configured())
@@ -95,7 +95,7 @@ namespace rsx
 					return page_navigation::stay;
 				});
 			}
-
+#ifndef __ANDROID__
 			add_item(home_menu::fa_icon::screenshot, get_localized_string(localized_string_id::HOME_MENU_SCREENSHOT), [](pad_button btn) -> page_navigation
 			{
 				if (btn != pad_button::cross) return page_navigation::stay;
@@ -122,7 +122,7 @@ namespace rsx
 				g_user_asked_for_fullscreen = true;
 				return page_navigation::stay; // No need to exit
 			});
-
+#endif
 			add_page(home_menu::fa_icon::floppy, std::make_shared<home_menu_savestate>(x, y, width, height, use_separators, this));
 
 			add_item(home_menu::fa_icon::restart, get_localized_string(localized_string_id::HOME_MENU_RESTART), [](pad_button btn) -> page_navigation
@@ -139,7 +139,7 @@ namespace rsx
 				});
 				return page_navigation::exit;
 			});
-
+#ifndef __ANDROID__
 			add_item(home_menu::fa_icon::poweroff, get_localized_string(localized_string_id::HOME_MENU_EXIT_GAME), [](pad_button btn) -> page_navigation
 			{
 				if (btn != pad_button::cross) return page_navigation::stay;
