@@ -1161,4 +1161,13 @@ Traducción qwen3
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Recargar Cuarto Último Estado de Emulación</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">Alternar Pantalla Completa</string>
 
+
+
+<string name="savestate_manager">Gestor de estados guardados</string>
+<string name="no_savestate_found">No se encontraron archivos de estado guardado</string>
+<string name="delete_all_savestates">Eliminar todos los estados guardados</string>
+<string name="confirm_delete_savestate">¿Está seguro de que desea eliminar este estado guardado?</string>
+<string name="confirm_delete_all_savestates">¿Está seguro de que desea eliminar todos los estados guardados de este juego?</string>
+<string name="savestate_deleted">Estado guardado eliminado</string>
+<string name="savestate_delete_failed">Error al eliminar el estado guardado: %s</string>
 </resources>

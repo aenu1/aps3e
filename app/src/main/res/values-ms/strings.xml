@@ -1156,4 +1156,13 @@ Diterjemahkan oleh qwen3
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Muat Semula Keadaan Emulasi Keempat Terakhir</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Togol Skrin Penuh</string>
 
+
+
+<string name="savestate_manager">Pengurus Savestate</string>
+<string name="no_savestate_found">Tiada fail savestate dijumpai</string>
+<string name="delete_all_savestates">Padam Semua Savestate</string>
+<string name="confirm_delete_savestate">Adakah anda pasti mahu memadam savestate ini?</string>
+<string name="confirm_delete_all_savestates">Adakah anda pasti mahu memadam semua savestate untuk permainan ini?</string>
+<string name="savestate_deleted">Savestate dipadam</string>
+<string name="savestate_delete_failed">Gagal memadam savestate: %s</string>
 </resources>

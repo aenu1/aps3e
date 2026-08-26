@@ -3,6 +3,14 @@
     <!--string name="app_name">aPS3e Premium</string-->
 	<string name="app_name">aPS3e</string>
 
+	<string name="savestate_manager">Savestate Manager</string>
+	<string name="no_savestate_found">No savestate files found</string>
+	<string name="delete_all_savestates">Delete All Savestates</string>
+	<string name="confirm_delete_savestate">Are you sure you want to delete this savestate?</string>
+	<string name="confirm_delete_all_savestates">Are you sure you want to delete all savestates for this game?</string>
+	<string name="savestate_deleted">Savestate deleted</string>
+	<string name="savestate_delete_failed">Failed to delete savestate: %s</string>
+
 	<string name="start_game_or_load_savestate">Start Game or Load Savestate</string>
 	<string name="start_game">Start Game</string>
 	<string name="load_savestate">Load Savestate</string>

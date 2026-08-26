@@ -1160,4 +1160,13 @@
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Ricarica Quartultimo Stato Emulazione</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Attiva/Disattiva Schermo Intero</string>
 
+
+
+<string name="savestate_manager">Gestore salvataggi</string>
+<string name="no_savestate_found">Nessun file di salvataggio trovato</string>
+<string name="delete_all_savestates">Elimina tutti i salvataggi</string>
+<string name="confirm_delete_savestate">Sei sicuro di voler eliminare questo salvataggio?</string>
+<string name="confirm_delete_all_savestates">Sei sicuro di voler eliminare tutti i salvataggi per questo gioco?</string>
+<string name="savestate_deleted">Salvataggio eliminato</string>
+<string name="savestate_delete_failed">Impossibile eliminare il salvataggio: %s</string>
 </resources>

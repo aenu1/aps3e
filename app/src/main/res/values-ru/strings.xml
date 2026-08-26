@@ -1145,4 +1145,13 @@
 	<string name="HOME_MENU_RELOAD_THIRD_SAVESTATE">Загрузить третье с конца состояние эмуляции</string>
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Загрузить четвёртое с конца состояние эмуляции</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">Переключить полноэкранный режим</string>
+
+
+<string name="savestate_manager">Менеджер сохранений</string>
+<string name="no_savestate_found">Файлы сохранений не найдены</string>
+<string name="delete_all_savestates">Удалить все сохранения</string>
+<string name="confirm_delete_savestate">Вы уверены, что хотите удалить это сохранение?</string>
+<string name="confirm_delete_all_savestates">Вы уверены, что хотите удалить все сохранения для этой игры?</string>
+<string name="savestate_deleted">Сохранение удалено</string>
+<string name="savestate_delete_failed">Не удалось удалить сохранение: %s</string>
 </resources>

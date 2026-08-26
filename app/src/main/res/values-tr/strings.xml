@@ -1155,4 +1155,13 @@
 	<string name="HOME_MENU_RELOAD_THIRD_SAVESTATE">Sondan üçüncü öykünme durumunu yeniden yükle</string>
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Sondan dördüncü öykünme durumunu yeniden yükle</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">Tam Ekranı Aç/Kapat</string>
+
+
+<string name="savestate_manager">Kayıt Durumu Yöneticisi</string>
+<string name="no_savestate_found">Kayıt durumu dosyası bulunamadı</string>
+<string name="delete_all_savestates">Tüm Kayıt Durumlarını Sil</string>
+<string name="confirm_delete_savestate">Bu kayıt durumunu silmek istediğinizden emin misiniz?</string>
+<string name="confirm_delete_all_savestates">Bu oyun için tüm kayıt durumlarını silmek istediğinizden emin misiniz?</string>
+<string name="savestate_deleted">Kayıt durumu silindi</string>
+<string name="savestate_delete_failed">Kayıt durumu silinemedi: %s</string>
 </resources>

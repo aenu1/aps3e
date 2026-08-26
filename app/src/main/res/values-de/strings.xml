@@ -1154,4 +1154,13 @@
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Viertletzten Emulationsspielstand laden</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">Vollbild umschalten</string>
 
+
+
+<string name="savestate_manager">Speicherstand-Verwaltung</string>
+<string name="no_savestate_found">Keine Speicherstände gefunden</string>
+<string name="delete_all_savestates">Alle Speicherstände löschen</string>
+<string name="confirm_delete_savestate">Möchten Sie diesen Speicherstand wirklich löschen?</string>
+<string name="confirm_delete_all_savestates">Möchten Sie wirklich alle Speicherstände für dieses Spiel löschen?</string>
+<string name="savestate_deleted">Speicherstand gelöscht</string>
+<string name="savestate_delete_failed">Speicherstand konnte nicht gelöscht werden: %s</string>
 </resources>

@@ -1156,4 +1156,13 @@ Translation qwen3
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">重新載入倒數第四個模擬狀態</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">切換全螢幕</string>
 
+
+
+<string name="savestate_manager">存檔管理器</string>
+<string name="no_savestate_found">未找到存檔文件</string>
+<string name="delete_all_savestates">刪除全部存檔</string>
+<string name="confirm_delete_savestate">確定要刪除此存檔嗎？</string>
+<string name="confirm_delete_all_savestates">確定要刪除此遊戲的全部存檔嗎？</string>
+<string name="savestate_deleted">存檔已刪除</string>
+<string name="savestate_delete_failed">刪除存檔失敗：%s</string>
 </resources>

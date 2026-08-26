@@ -1155,4 +1155,13 @@ Terjemahan qwen3
 <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Muat Ulang Status Emulasi Keempat Terakhir</string>
 <string name="HOME_MENU_TOGGLE_FULLSCREEN">Alihkan Layar Penuh</string>
 
+
+
+<string name="savestate_manager">Manajer Savestate</string>
+<string name="no_savestate_found">Tidak ada file savestate ditemukan</string>
+<string name="delete_all_savestates">Hapus Semua Savestate</string>
+<string name="confirm_delete_savestate">Apakah Anda yakin ingin menghapus savestate ini?</string>
+<string name="confirm_delete_all_savestates">Apakah Anda yakin ingin menghapus semua savestate untuk game ini?</string>
+<string name="savestate_deleted">Savestate dihapus</string>
+<string name="savestate_delete_failed">Gagal menghapus savestate: %s</string>
 </resources>

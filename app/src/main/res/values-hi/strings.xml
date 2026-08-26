@@ -1149,4 +1149,13 @@ Qwen3 का अनुवाद
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">अंतिम से चौथी एमुलेशन स्थिति पुनः लोड करें</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">पूर्ण स्क्रीन टॉगल करें</string>
 
+
+
+<string name="savestate_manager">सेवस्टेट प्रबंधक</string>
+<string name="no_savestate_found">कोई सेवस्टेट फ़ाइल नहीं मिली</string>
+<string name="delete_all_savestates">सभी सेवस्टेट हटाएं</string>
+<string name="confirm_delete_savestate">क्या आप इस सेवस्टेट को हटाना चाहते हैं?</string>
+<string name="confirm_delete_all_savestates">क्या आप इस गेम के सभी सेवस्टेट हटाना चाहते हैं?</string>
+<string name="savestate_deleted">सेवस्टेट हटा दिया गया</string>
+<string name="savestate_delete_failed">सेवस्टेट हटाने में विफल: %s</string>
 </resources>

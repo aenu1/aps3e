@@ -1159,4 +1159,13 @@ RPCS3 포팅 최적화 기반 제작되었습니다. RPCS3 프로젝트 참여�
 <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">마지막에서 네 번째 에뮬레이션 상태 다시 불러오기</string>
 <string name="HOME_MENU_TOGGLE_FULLSCREEN">전체 화면 전환</string>
 
+
+
+<string name="savestate_manager">세이브스테이트 관리자</string>
+<string name="no_savestate_found">세이브스테이트 파일을 찾을 수 없습니다</string>
+<string name="delete_all_savestates">모든 세이브스테이트 삭제</string>
+<string name="confirm_delete_savestate">이 세이브스테이트를 삭제하시겠습니까?</string>
+<string name="confirm_delete_all_savestates">이 게임의 모든 세이브스테이트를 삭제하시겠습니까?</string>
+<string name="savestate_deleted">세이브스테이트가 삭제되었습니다</string>
+<string name="savestate_delete_failed">세이브스테이트 삭제 실패: %s</string>
 </resources>

@@ -1165,4 +1165,13 @@ Traduction qwen3
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Recharger le quatrième état d`émulation en partant de la fin</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Basculer en plein écran</string>
 
+
+
+<string name="savestate_manager">Gestionnaire de sauvegardes</string>
+<string name="no_savestate_found">Aucun fichier de sauvegarde trouvé</string>
+<string name="delete_all_savestates">Supprimer toutes les sauvegardes</string>
+<string name="confirm_delete_savestate">Êtes-vous sûr de vouloir supprimer cette sauvegarde ?</string>
+<string name="confirm_delete_all_savestates">Êtes-vous sûr de vouloir supprimer toutes les sauvegardes de ce jeu ?</string>
+<string name="savestate_deleted">Sauvegarde supprimée</string>
+<string name="savestate_delete_failed">Échec de la suppression de la sauvegarde : %s</string>
 </resources>

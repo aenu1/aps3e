@@ -49,7 +49,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Array;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -70,6 +72,7 @@ public class UserDataActivity extends AppCompatActivity {
     public static final int PAGE_TYPE_DRIVER_MANAGER = 4;
     public static final int PAGE_TYPE_GAME_DATA_MANAGER = 5;
     public static final int PAGE_TYPE_PATCH_MANAGER = 6;
+    public static final int PAGE_TYPE_SAVESTATE_MANAGER = 7;
 
     private static final int REQUEST_EXPORT_PPU_CACHE = 6201;
     private static final int REQUEST_IMPORT_PPU_CACHE = 6202;
@@ -77,6 +80,7 @@ public class UserDataActivity extends AppCompatActivity {
     private static final int REQUEST_IMPORT_GAME_DATA = 6204;
 
     private int current_page_type = PAGE_TYPE_MAIN;
+    private String current_savestate_serial;
 
     static class PageInfo{
         final int title_id;
@@ -126,6 +130,7 @@ public class UserDataActivity extends AppCompatActivity {
         layout_list.put(PAGE_TYPE_DRIVER_MANAGER, findViewById(R.id.list_driver));
         layout_list.put(PAGE_TYPE_GAME_DATA_MANAGER, findViewById(R.id.game_data_view));
         layout_list.put(PAGE_TYPE_PATCH_MANAGER, findViewById(R.id.patch_manager_view));
+        layout_list.put(PAGE_TYPE_SAVESTATE_MANAGER, findViewById(R.id.savestate_view));
     }
 
     private void handle_back_pressed() {
@@ -158,6 +163,9 @@ public class UserDataActivity extends AppCompatActivity {
                 case PAGE_TYPE_PATCH_MANAGER:
                     show_patch_table_page();
                     break;
+                case PAGE_TYPE_SAVESTATE_MANAGER:
+                    show_savestate_page();
+                    break;
             }
         } else if (current_page_type == PAGE_TYPE_PPU_CACHE_MANAGER) {
             handle_ppu_cache_item_click(adapter, position);
@@ -167,6 +175,8 @@ public class UserDataActivity extends AppCompatActivity {
             //
         } else if (current_page_type == PAGE_TYPE_DRIVER_MANAGER) {
             handle_driver_item_click(adapter, position);
+        } else if (current_page_type == PAGE_TYPE_SAVESTATE_MANAGER) {
+            handle_savestate_item_click(adapter, position);
         }
     }
 
@@ -184,6 +194,7 @@ public class UserDataActivity extends AppCompatActivity {
         titles.add(new PageInfo(R.string.compatibility_table, PAGE_TYPE_COMPATIBILITY_TABLE));
         titles.add(new PageInfo(R.string.patch_manager, PAGE_TYPE_PATCH_MANAGER));
         titles.add(new PageInfo(R.string.game_data_manager, PAGE_TYPE_GAME_DATA_MANAGER));
+        titles.add(new PageInfo(R.string.savestate_manager, PAGE_TYPE_SAVESTATE_MANAGER));
 
         if(Emulator.get.support_custom_driver()) {
             titles.add(new PageInfo(R.string.driver_manager, PAGE_TYPE_DRIVER_MANAGER));
@@ -958,6 +969,140 @@ public class UserDataActivity extends AppCompatActivity {
             e.printStackTrace();
         }
         return serial;
+    }
+
+    private void show_savestate_page() {
+        ListView listSavestate = (ListView) select_layout(PAGE_TYPE_SAVESTATE_MANAGER);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(getString(R.string.savestate_manager));
+        }
+
+        File baseDir = new File(Application.get_app_data_dir(), "config/savestates");
+        final ArrayList<File> gameDirs = new ArrayList<>();
+        if (baseDir.exists() && baseDir.isDirectory()) {
+            File[] dirs = baseDir.listFiles();
+            if (dirs != null) {
+                for (File dir : dirs) {
+                    if (dir.isDirectory()) {
+                        File[] savestateFiles = dir.listFiles();
+                        if (savestateFiles != null && savestateFiles.length > 0) {
+                            gameDirs.add(dir);
+                        }
+                    }
+                }
+            }
+        }
+
+        listSavestate.setAdapter(new ArrayAdapter<File>(this, android.R.layout.simple_list_item_2, gameDirs) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                if (convertView == null)
+                    convertView = getLayoutInflater().inflate(android.R.layout.simple_list_item_2, parent, false);
+
+                TextView text1 = convertView.findViewById(android.R.id.text1);
+                TextView text2 = convertView.findViewById(android.R.id.text2);
+
+                String serial = getItem(position).getName();
+                String gameName = getGameName(serial);
+                File[] files = getItem(position).listFiles();
+                int count = files != null ? files.length : 0;
+                text1.setText(gameName);
+                text2.setText(serial + " (" + count + " files)");
+
+                return convertView;
+            }
+        });
+        listSavestate.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                handle_item_click((ListAdapter) parent.getAdapter(), position);
+            }
+        });
+
+        current_page_type = PAGE_TYPE_SAVESTATE_MANAGER;
+    }
+
+    private void handle_savestate_item_click(ListAdapter adapter, int position) {
+        File gameDir = (File) adapter.getItem(position);
+        final String serial = gameDir.getName();
+        final String gameName = getGameName(serial);
+
+        final File[] savestateFiles = gameDir.listFiles();
+        if (savestateFiles == null || savestateFiles.length == 0) {
+            Toast.makeText(this, R.string.no_savestate_found, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ArrayList<String> items = new ArrayList<>();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        for (File f : savestateFiles) {
+            String name = f.getName();
+            if (name.endsWith(".SAVESTAT.zst")) {
+                name = name.substring(0, name.length() - ".SAVESTAT.zst".length());
+            }
+            String dateStr = sdf.format(new Date(f.lastModified()));
+            items.add(name + "\n" + dateStr + " | " + format_file_size(f.length()));
+        }
+        items.add(getString(R.string.delete_all_savestates));
+
+        new AlertDialog.Builder(this)
+                .setTitle(gameName)
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (which < savestateFiles.length) {
+                            confirm_delete_savestate(savestateFiles[which]);
+                        } else {
+                            confirm_delete_all_savestates(gameDir, gameName);
+                        }
+                    }
+                })
+                .show();
+    }
+
+    private void confirm_delete_savestate(final File file) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.delete)
+                .setMessage(R.string.confirm_delete_savestate)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (file.delete()) {
+                            Toast.makeText(UserDataActivity.this, R.string.savestate_deleted, Toast.LENGTH_SHORT).show();
+                            show_savestate_page();
+                        } else {
+                            Toast.makeText(UserDataActivity.this,
+                                    String.format(getString(R.string.savestate_delete_failed), file.getName()),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void confirm_delete_all_savestates(final File gameDir, String gameName) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.delete_all_savestates)
+                .setMessage(getString(R.string.confirm_delete_all_savestates) + "\n\n" + gameName)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        try {
+                            DocumentsProvider.recursive_delete_sub_files(gameDir);
+                            gameDir.delete();
+                            Toast.makeText(UserDataActivity.this, R.string.savestate_deleted, Toast.LENGTH_SHORT).show();
+                            show_savestate_page();
+                        } catch (Exception e) {
+                            Toast.makeText(UserDataActivity.this,
+                                    String.format(getString(R.string.savestate_delete_failed), e.getMessage()),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private View select_layout(int page_ty) {

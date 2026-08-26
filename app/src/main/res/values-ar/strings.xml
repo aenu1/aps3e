@@ -1158,4 +1158,13 @@
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">إعادة تحميل حالة المحاكاة الرابعة من الأخيرة</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">تبديل وضع ملء الشاشة</string>
 
+
+
+<string name="savestate_manager">مدير حالات الحفظ</string>
+<string name="no_savestate_found">لم يتم العثور على ملفات حالة الحفظ</string>
+<string name="delete_all_savestates">حذف جميع حالات الحفظ</string>
+<string name="confirm_delete_savestate">هل أنت متأكد أنك تريد حذف حالة الحفظ هذه؟</string>
+<string name="confirm_delete_all_savestates">هل أنت متأكد أنك تريد حذف جميع حالات الحفظ لهذه اللعبة؟</string>
+<string name="savestate_deleted">تم حذف حالة الحفظ</string>
+<string name="savestate_delete_failed">فشل حذف حالة الحفظ: %s</string>
 </resources>

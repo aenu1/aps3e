@@ -1122,4 +1122,13 @@
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Przywróć czwarty od końca stan emulacji</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Przełącz pełny ekran</string>
 
+
+
+<string name="savestate_manager">Menedżer stanów zapisu</string>
+<string name="no_savestate_found">Nie znaleziono plików stanu zapisu</string>
+<string name="delete_all_savestates">Usuń wszystkie stany zapisu</string>
+<string name="confirm_delete_savestate">Czy na pewno chcesz usunąć ten stan zapisu?</string>
+<string name="confirm_delete_all_savestates">Czy na pewno chcesz usunąć wszystkie stany zapisu dla tej gry?</string>
+<string name="savestate_deleted">Stan zapisu usunięty</string>
+<string name="savestate_delete_failed">Nie udało się usunąć stanu zapisu: %s</string>
 </resources>

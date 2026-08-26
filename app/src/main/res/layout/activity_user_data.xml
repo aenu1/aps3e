@@ -102,6 +102,14 @@
 			android:scrollbars="vertical"
 			android:visibility="gone" />
 
+		<!-- Savestate管理 -->
+		<ListView
+			android:id="@+id/savestate_view"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:scrollbars="vertical"
+			android:visibility="gone" />
+
 		<!-- 补丁管理 -->
 		<LinearLayout
 			android:id="@+id/patch_manager_view"

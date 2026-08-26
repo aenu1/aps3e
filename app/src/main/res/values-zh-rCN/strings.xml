@@ -1164,5 +1164,14 @@
 <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">重新加载倒数第四个模拟状态</string>
 <string name="HOME_MENU_TOGGLE_FULLSCREEN">切换全屏</string>
 
+
+
+<string name="savestate_manager">存档管理器</string>
+<string name="no_savestate_found">未找到存档文件</string>
+<string name="delete_all_savestates">删除全部存档</string>
+<string name="confirm_delete_savestate">确定要删除此存档吗？</string>
+<string name="confirm_delete_all_savestates">确定要删除此游戏的全部存档吗？</string>
+<string name="savestate_deleted">存档已删除</string>
+<string name="savestate_delete_failed">删除存档失败：%s</string>
 </resources>
 

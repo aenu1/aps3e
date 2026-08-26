@@ -1151,4 +1151,13 @@
 	<string name="HOME_MENU_RELOAD_THIRD_SAVESTATE">โหลดสถานะการจำลองที่สามจากท้ายอีกครั้ง</string>
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">โหลดสถานะการจำลองที่สี่จากท้ายอีกครั้ง</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">สลับเต็มหน้าจอ</string>
+
+
+<string name="savestate_manager">ตัวจัดการ Savestate</string>
+<string name="no_savestate_found">ไม่พบไฟล์ savestate</string>
+<string name="delete_all_savestates">ลบ Savestate ทั้งหมด</string>
+<string name="confirm_delete_savestate">คุณแน่ใจหรือไม่ว่าต้องการลบ savestate นี้?</string>
+<string name="confirm_delete_all_savestates">คุณแน่ใจหรือไม่ว่าต้องการลบ savestate ทั้งหมดสำหรับเกมนี้?</string>
+<string name="savestate_deleted">ลบ savestate แล้ว</string>
+<string name="savestate_delete_failed">ลบ savestate ล้มเหลว: %s</string>
 </resources>

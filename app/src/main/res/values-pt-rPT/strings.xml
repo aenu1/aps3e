@@ -1151,4 +1151,13 @@
     <string name="HOME_MENU_RELOAD_THIRD_SAVESTATE">Recarregar antepenúltimo estado de emulação</string>
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Recarregar quarto último estado de emulação</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Alternar ecrã inteiro</string>
+
+
+<string name="savestate_manager">Gestor de Savestates</string>
+<string name="no_savestate_found">Nenhum ficheiro de savestate encontrado</string>
+<string name="delete_all_savestates">Eliminar Todos os Savestates</string>
+<string name="confirm_delete_savestate">Tem a certeza de que pretende eliminar este savestate?</string>
+<string name="confirm_delete_all_savestates">Tem a certeza de que pretende eliminar todos os savestates deste jogo?</string>
+<string name="savestate_deleted">Savestate eliminado</string>
+<string name="savestate_delete_failed">Falha ao eliminar o savestate: %s</string>
 </resources>

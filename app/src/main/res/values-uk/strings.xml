@@ -1148,4 +1148,13 @@
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Перезавантажити четвертий з кінця стан емуляції</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Перемкнути повноекранний режим</string>
 
+
+
+<string name="savestate_manager">Менеджер збережень</string>
+<string name="no_savestate_found">Файли збережень не знайдено</string>
+<string name="delete_all_savestates">Видалити всі збереження</string>
+<string name="confirm_delete_savestate">Ви впевнені, що хочете видалити це збереження?</string>
+<string name="confirm_delete_all_savestates">Ви впевнені, що хочете видалити всі збереження для цієї гри?</string>
+<string name="savestate_deleted">Збереження видалено</string>
+<string name="savestate_delete_failed">Не вдалося видалити збереження: %s</string>
 </resources>

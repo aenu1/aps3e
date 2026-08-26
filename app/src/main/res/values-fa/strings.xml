@@ -1163,4 +1163,13 @@
 	<string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">بارگذاری مجدد وضعیت چهارم از آخر</string>
 	<string name="HOME_MENU_TOGGLE_FULLSCREEN">تغییر حالت تمام‌صفحه</string>
 
+
+
+<string name="savestate_manager">مدیر ذخیره وضعیت</string>
+<string name="no_savestate_found">هیچ فایل ذخیره وضعیتی یافت نشد</string>
+<string name="delete_all_savestates">حذف همه ذخیره‌های وضعیت</string>
+<string name="confirm_delete_savestate">آیا مطمئن هستید که می‌خواهید این ذخیره وضعیت را حذف کنید؟</string>
+<string name="confirm_delete_all_savestates">آیا مطمئن هستید که می‌خواهید همه ذخیره‌های وضعیت این بازی را حذف کنید؟</string>
+<string name="savestate_deleted">ذخیره وضعیت حذف شد</string>
+<string name="savestate_delete_failed">حذف ذخیره وضعیت ناموفق بود: %s</string>
 </resources>

@@ -1148,4 +1148,13 @@
 <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">最後から4番目のエミュレーション状態を再読み込み</string>
 <string name="HOME_MENU_TOGGLE_FULLSCREEN">全画面表示を切り替え</string>
 
+
+
+<string name="savestate_manager">セーブステートマネージャー</string>
+<string name="no_savestate_found">セーブステートが見つかりません</string>
+<string name="delete_all_savestates">すべてのセーブステートを削除</string>
+<string name="confirm_delete_savestate">このセーブステートを削除しますか？</string>
+<string name="confirm_delete_all_savestates">このゲームのすべてのセーブステートを削除しますか？</string>
+<string name="savestate_deleted">セーブステートが削除されました</string>
+<string name="savestate_delete_failed">セーブステートの削除に失敗しました：%s</string>
 </resources>

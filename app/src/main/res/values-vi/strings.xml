@@ -1155,4 +1155,13 @@ Dịch bởi qwen3
     <string name="HOME_MENU_RELOAD_FOURTH_SAVESTATE">Tải lại trạng thái giả lập thứ tư từ cuối</string>
     <string name="HOME_MENU_TOGGLE_FULLSCREEN">Chuyển đổi toàn màn hình</string>
 
+
+
+<string name="savestate_manager">Quản lý Savestate</string>
+<string name="no_savestate_found">Không tìm thấy tệp savestate nào</string>
+<string name="delete_all_savestates">Xóa Tất Cả Savestate</string>
+<string name="confirm_delete_savestate">Bạn có chắc chắn muốn xóa savestate này không?</string>
+<string name="confirm_delete_all_savestates">Bạn có chắc chắn muốn xóa tất cả savestate cho trò chơi này không?</string>
+<string name="savestate_deleted">Đã xóa savestate</string>
+<string name="savestate_delete_failed">Xóa savestate thất bại: %s</string>
 </resources>
