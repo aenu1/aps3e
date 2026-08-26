@@ -255,7 +255,9 @@ public class EmulatorSettings extends AppCompatActivity {
 
         Preference apply_database_config_pref(){
             Preference p=new Preference(requireContext());
-            p.setTitle(R.string.apply_recommended_config);
+            SpannableString title=new SpannableString(getString(R.string.apply_recommended_config));
+            title.setSpan(new ForegroundColorSpan(Color.BLUE),0,title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            p.setTitle(title);
             p.setIconSpaceReserved(false);
             p.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener(){
                 public boolean onPreferenceClick(@NonNull Preference preference) {
