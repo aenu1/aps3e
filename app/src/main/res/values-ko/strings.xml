@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+<string name="start_game_or_load_savestate">게임 시작 또는 세이브스테이트 불러오기</string>
+<string name="start_game">게임 시작</string>
+<string name="load_savestate">세이브스테이트 불러오기</string>
+
 <string name="apply_recommended_config">권장 설정 적용</string>
 <string name="apply_recommended_config_confirm">데이터베이스에서 권장 설정을 적용하시겠습니까?</string>
 <string name="apply_recommended_config_success">권장 설정이 적용되었습니다</string>

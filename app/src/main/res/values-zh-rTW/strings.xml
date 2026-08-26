@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="start_game_or_load_savestate">開始遊戲或載入存檔</string>
+<string name="start_game">開始遊戲</string>
+<string name="load_savestate">載入存檔</string>
 <string name="apply_recommended_config">套用推薦配置</string>
 <string name="apply_recommended_config_confirm">是否從資料庫套用推薦配置？</string>
 <string name="apply_recommended_config_success">推薦配置已套用</string>

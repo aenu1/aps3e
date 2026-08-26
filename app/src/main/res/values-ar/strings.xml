@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="start_game_or_load_savestate">بدء اللعبة أو تحميل حالة الحفظ</string>
+	<string name="start_game">بدء اللعبة</string>
+	<string name="load_savestate">تحميل حالة الحفظ</string>
 	<string name="apply_recommended_config">تطبيق الإعدادات الموصى بها</string>
 	<string name="apply_recommended_config_confirm">تطبيق الإعدادات الموصى بها من قاعدة البيانات؟</string>
 	<string name="apply_recommended_config_success">تم تطبيق الإعدادات الموصى بها</string>

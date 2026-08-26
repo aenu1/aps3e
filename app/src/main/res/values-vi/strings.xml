@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="start_game_or_load_savestate">Bắt đầu trò chơi hoặc tải trạng thái đã lưu</string>
+    <string name="start_game">Bắt đầu trò chơi</string>
+    <string name="load_savestate">Tải trạng thái đã lưu</string>
     <string name="apply_recommended_config">Áp dụng cấu hình khuyến nghị</string>
     <string name="apply_recommended_config_confirm">Áp dụng cấu hình khuyến nghị từ cơ sở dữ liệu?</string>
     <string name="apply_recommended_config_success">Đã áp dụng cấu hình khuyến nghị</string>

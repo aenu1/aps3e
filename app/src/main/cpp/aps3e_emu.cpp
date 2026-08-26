@@ -633,6 +633,13 @@ namespace ae{
         {
             Emu.SetForceBoot(true);
 
+            const char* savestate_path = std::getenv("APS3E_LOAD_SAVESTATE_PATH");
+            if (savestate_path){
+                std::string sp=std::string(savestate_path);
+                const game_boot_result error = Emu.BootISOSaveState(sp, game_id, boot_game_fd, boot_game_dec_key_fd);
+                return error==game_boot_result::no_errors;
+            }
+
             const char* config_path=getenv("APS3E_CUSTOM_CONFIG_YAML_PATH");
             const cfg_mode config_mode = config_path?cfg_mode::custom:cfg_mode::database_config ;
 

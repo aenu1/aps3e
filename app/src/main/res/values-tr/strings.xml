@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="start_game_or_load_savestate">Oyunu Başlat veya Kayıtlı Durumu Yükle</string>
+	<string name="start_game">Oyunu Başlat</string>
+	<string name="load_savestate">Kayıtlı Durumu Yükle</string>
 	<string name="apply_recommended_config">Önerilen Yapılandırmayı Uygula</string>
 	<string name="apply_recommended_config_confirm">Veritabanından önerilen yapılandırma uygulansın mı?</string>
 	<string name="apply_recommended_config_success">Önerilen yapılandırma uygulandı</string>

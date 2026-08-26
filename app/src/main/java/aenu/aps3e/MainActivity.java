@@ -23,6 +23,7 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.icu.text.SimpleDateFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -219,10 +220,62 @@ public class MainActivity extends AppCompatActivity {
 			intent.setPackage(getPackageName());
 			
 			intent.putExtra(EmulatorActivity.EXTRA_META_INFO,meta_info);
-			startActivity(intent);
+
+			// 检测是否存在即时存档,存在则让用户选择开始游戏或载入存档
+			List<File> savestates = find_instant_savestates(meta_info.serial);
+			if (!savestates.isEmpty()) {
+				show_savestate_menu(intent, savestates);
+			} else {
+				startActivity(intent);
+			}
 		}
 	};
-	
+
+	private List<File> find_instant_savestates(String serial){
+		List<File> savestates = new ArrayList<>();
+		if (serial == null || serial.isEmpty())
+			return savestates;
+
+		File dir = Application.get_save_state_dir(serial);
+		File[] files = dir.listFiles();
+		if (files == null)
+			return savestates;
+
+		String prefix = serial + "_";
+		for (File f : files) {
+			String name = f.getName();
+			if (f.isFile() && name.startsWith(prefix) && name.endsWith(".SAVESTAT.zst") && f.length() > 1024)
+				savestates.add(f);
+		}
+		return savestates;
+	}
+
+	// 存在即时存档时弹出菜单,让用户选择开始游戏或载入存档
+	private void show_savestate_menu(final Intent baseIntent,  List<File> savestates){
+		AlertDialog.Builder builder = new AlertDialog.Builder(this);
+		builder.setTitle(R.string.start_game_or_load_savestate);
+		List<String> items = new ArrayList<>();
+		items.add(getString(R.string.start_game));
+		for(File f:savestates){
+			String name=f.getName();
+			name=name.substring(0,name.length()-".SAVESTAT.zst".length());
+			String time=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(f.lastModified()));
+			items.add(String.format("%s (%s)",name,time));
+		}
+		builder.setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener(){
+			@Override
+			public void onClick(DialogInterface dialog, int which){
+				Intent intent = new Intent(baseIntent);
+				int savestate_index=which-1;
+				if (which !=0 ) // 载入即时存档
+					intent.putExtra(EmulatorActivity.EXTRA_SAVESTATE_PATH, savestates.get(savestate_index).getAbsolutePath());
+				startActivity(intent);
+			}
+		});
+		builder.setNegativeButton(android.R.string.cancel, null);
+		builder.show();
+	}
+
 	GameMetaInfoAdapter adapter;
 
 	ProgressTask progress_task;

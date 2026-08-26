@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="start_game_or_load_savestate">开始游戏或载入即时存档</string>
+    <string name="start_game">开始游戏</string>
+    <string name="load_savestate">载入即时存档</string>
+
 <string name="apply_recommended_config">应用推荐配置</string>
 <string name="apply_recommended_config_confirm">是否从数据库应用推荐配置？</string>
 <string name="apply_recommended_config_success">推荐配置已应用</string>

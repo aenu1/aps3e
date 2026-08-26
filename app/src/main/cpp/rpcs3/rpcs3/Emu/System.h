@@ -435,6 +435,7 @@ public:
 
 	game_boot_result BootGame(const std::string& path, const std::string& title_id = "", bool direct = false, cfg_mode config_mode = cfg_mode::custom, const std::string& config_path = "", const std::optional<std::string>& db_config=std::nullopt);
     game_boot_result BootISO(const std::string& path,const std::string& title_id,int fd,int dec_key_fd,cfg_mode config_mode = cfg_mode::custom, const std::string& config_path = "");
+    game_boot_result BootISOSaveState(const std::string& path,const std::string& title_id,int fd,int dec_key_fd);
 
     bool BootRsxCapture(const std::string& path);
 

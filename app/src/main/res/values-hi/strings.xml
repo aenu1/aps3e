@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="start_game_or_load_savestate">गेम शुरू करें या सेवस्टेट लोड करें</string>
+    <string name="start_game">गेम शुरू करें</string>
+    <string name="load_savestate">सेवस्टेट लोड करें</string>
     <string name="apply_recommended_config">अनुशंसित कॉन्फ़िगरेशन लागू करें</string>
     <string name="apply_recommended_config_confirm">डेटाबेस से अनुशंसित कॉन्फ़िगरेशन लागू करें?</string>
     <string name="apply_recommended_config_success">अनुशंसित कॉन्फ़िगरेशन लागू किया गया</string>

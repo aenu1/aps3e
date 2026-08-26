@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="start_game_or_load_savestate">Mulakan Permainan atau Muat Savestate</string>
+    <string name="start_game">Mulakan Permainan</string>
+    <string name="load_savestate">Muat Savestate</string>
     <string name="apply_recommended_config">Guna Konfigurasi Disyorkan</string>
     <string name="apply_recommended_config_confirm">Guna konfigurasi disyorkan dari pangkalan data?</string>
     <string name="apply_recommended_config_success">Konfigurasi disyorkan telah digunakan</string>

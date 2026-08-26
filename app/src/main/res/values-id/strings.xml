@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+<string name="start_game_or_load_savestate">Mulai Game atau Muat Savestate</string>
+<string name="start_game">Mulai Game</string>
+<string name="load_savestate">Muat Savestate</string>
 <string name="apply_recommended_config">Terapkan Konfigurasi yang Direkomendasikan</string>
 <string name="apply_recommended_config_confirm">Terapkan konfigurasi yang direkomendasikan dari database?</string>
 <string name="apply_recommended_config_success">Konfigurasi yang direkomendasikan berhasil diterapkan</string>

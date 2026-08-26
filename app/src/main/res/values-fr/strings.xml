@@ -3,6 +3,9 @@
 	<!-- +++++++++++++++++++++++++++ -->
 	<!--无法转义',&apos;会报错 -->
 	<!-- +++++++++++++++++++++++++++ -->
+	<string name="start_game_or_load_savestate">Démarrer le jeu ou charger une sauvegarde</string>
+	<string name="start_game">Démarrer le jeu</string>
+	<string name="load_savestate">Charger une sauvegarde</string>
 	<string name="apply_recommended_config">Appliquer la configuration recommandée</string>
 	<string name="apply_recommended_config_confirm">Appliquer la configuration recommandée depuis la base de données ?</string>
 	<string name="apply_recommended_config_success">Configuration recommandée appliquée</string>

@@ -44,6 +44,7 @@ public class EmulatorActivity extends AppCompatActivity {
 	public static final String EXTRA_META_INFO = "meta_info";
 	public static final String EXTRA_ISO_URI = "iso_uri";
 	public static final String EXTRA_GAME_DIR = "game_dir";
+	public static final String EXTRA_SAVESTATE_PATH = "savestate_path";
 
 	private static final String PREF_LAST_SESSION_ACTIVE = "last_session_active";
 	private static final String PREF_LAST_SESSION_END = "last_session_end_time";
@@ -172,6 +173,10 @@ public class EmulatorActivity extends AppCompatActivity {
 
 			boolean enable_log = getSharedPreferences("debug", MODE_PRIVATE).getBoolean("enable_log", false);
 			Emulator.get.set_env("APS3E_ENABLE_LOG", Boolean.toString(enable_log));
+
+			String savestate_path=getIntent().getStringExtra(EXTRA_SAVESTATE_PATH);
+			if (savestate_path!=null && !savestate_path.isEmpty())
+				Emulator.get.set_env("APS3E_LOAD_SAVESTATE_PATH", savestate_path);
 		}
 
 		//setup game path

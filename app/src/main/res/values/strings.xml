@@ -3,6 +3,10 @@
     <!--string name="app_name">aPS3e Premium</string-->
 	<string name="app_name">aPS3e</string>
 
+	<string name="start_game_or_load_savestate">Start Game or Load Savestate</string>
+	<string name="start_game">Start Game</string>
+	<string name="load_savestate">Load Savestate</string>
+
 	<string name="apply_recommended_config">Apply Recommended Config</string>
 	<string name="apply_recommended_config_confirm">Apply recommended configuration from database?</string>
 	<string name="apply_recommended_config_success">Recommended configuration applied</string>

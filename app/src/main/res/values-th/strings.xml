@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<string name="start_game_or_load_savestate">เริ่มเกมหรือโหลดสถานะบันทึก</string>
+	<string name="start_game">เริ่มเกม</string>
+	<string name="load_savestate">โหลดสถานะบันทึก</string>
 	<string name="apply_recommended_config">ใช้การตั้งค่าที่แนะนำ</string>
 	<string name="apply_recommended_config_confirm">ใช้การตั้งค่าที่แนะนำจากฐานข้อมูล?</string>
 	<string name="apply_recommended_config_success">ใช้การตั้งค่าที่แนะนำแล้ว</string>

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="start_game_or_load_savestate">Avvia gioco o carica salvataggio</string>
+	<string name="start_game">Avvia gioco</string>
+	<string name="load_savestate">Carica salvataggio</string>
 	<string name="apply_recommended_config">Applica Configurazione Consigliata</string>
 	<string name="apply_recommended_config_confirm">Applicare la configurazione consigliata dal database?</string>
 	<string name="apply_recommended_config_success">Configurazione consigliata applicata</string>

@@ -1060,6 +1060,14 @@ game_boot_result Emulator::BootISO(const std::string& path,const std::string& ti
     return Load(title_id);
 }
 
+game_boot_result Emulator::BootISOSaveState(const std::string& path,const std::string& title_id,int fd,int dec_key_fd){
+    m_path = path;
+    m_iso_fd=fd;
+    m_iso_dec_key_fd=dec_key_fd;
+    return Load(title_id);
+}
+
+
 void Emulator::SetForceBoot(bool force_boot)
 {
 	m_force_boot = force_boot;

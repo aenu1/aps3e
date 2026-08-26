@@ -84,6 +84,10 @@ public class Application extends android.app.Application
         return new File(Application.get_app_data_dir(),"config/patch_config.yml");
     }
 
+    public static File get_save_state_dir(String serial){
+        return new File(Application.get_app_data_dir(),"config/savestates/"+serial);
+    }
+
     static boolean device_support_vulkan() {
         return gpu_device_name_vk!=null;
     }

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+	<string name="start_game_or_load_savestate">Начать игру или загрузить сохранение</string>
+	<string name="start_game">Начать игру</string>
+	<string name="load_savestate">Загрузить сохранение</string>
 	<string name="apply_recommended_config">Применить рекомендуемую конфигурацию</string>
 	<string name="apply_recommended_config_confirm">Применить рекомендуемую конфигурацию из базы данных?</string>
 	<string name="apply_recommended_config_success">Рекомендуемая конфигурация применена</string>
